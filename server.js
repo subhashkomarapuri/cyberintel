@@ -2,19 +2,20 @@
  * CyberIntel — Local Proxy Server
  * Sits between the browser and Anthropic API to bypass CORS.
  *
- * Usage:
- *   1. npm install   (first time only)
- *   2. node server.js
- *   3. Open http://localhost:3000 in your browser
+ * Usage (local):
+ *   1. node server.js
+ *   2. Open http://localhost:3000 in your browser
  *
- * Your API key is entered in the browser — this server never stores it.
+ * Deployment (Railway):
+ *   Set ANTHROPIC_API_KEY environment variable in Railway dashboard.
  */
 
 const http = require('http');
-const fs = require('fs');
+const fs   = require('fs');
 const path = require('path');
 
 const API_KEY = process.env.ANTHROPIC_API_KEY || '';
+const PORT    = process.env.PORT || 3000;
 
 http.createServer(async (req, res) => {
 
@@ -22,7 +23,7 @@ http.createServer(async (req, res) => {
     const filePath = path.join(__dirname, req.url === '/' ? 'cyber_intel.html' : req.url);
     try {
       const data = fs.readFileSync(filePath);
-      const ext = path.extname(filePath);
+      const ext  = path.extname(filePath);
       const mime = ext === '.html' ? 'text/html' : 'text/plain';
       res.writeHead(200, { 'Content-Type': mime });
       res.end(data);
@@ -40,8 +41,8 @@ http.createServer(async (req, res) => {
         const response = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': API_KEY,
+            'Content-Type':      'application/json',
+            'x-api-key':         API_KEY,
             'anthropic-version': '2023-06-01'
           },
           body
@@ -61,5 +62,4 @@ http.createServer(async (req, res) => {
 
   res.writeHead(404); res.end();
 
-const PORT = process.env.PORT || 3000;
 }).listen(PORT, () => console.log(`Running at http://localhost:${PORT}`));
