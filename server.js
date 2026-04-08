@@ -10,9 +10,10 @@
  *   PORT               — optional, defaults to 3000
  */
 
-const http = require('http');
-const fs   = require('fs');
-const path = require('path');
+const http  = require('http');
+const https = require('https');
+const fs    = require('fs');
+const path  = require('path');
 
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY || '';
 const TAVILY_KEY    = process.env.TAVILY_API_KEY || '';
@@ -229,28 +230,54 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
-  /* Anthropic proxy */
+  /* Anthropic proxy — uses native https.request (not fetch) for reliability */
   if (req.method === 'POST' && req.url === '/api/messages') {
-    try {
-      const body = await readBody(req);
-      console.log(`[Claude] Prompt size: ${body.length} chars`);
+    const body = await readBody(req);
+    console.log(`[Claude] Prompt size: ${body.length} chars`);
 
-      const resp = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
-        body
+    const opts = {
+      hostname: 'api.anthropic.com',
+      path:     '/v1/messages',
+      method:   'POST',
+      headers:  {
+        'Content-Type':      'application/json',
+        'x-api-key':         ANTHROPIC_KEY,
+        'anthropic-version': '2023-06-01',
+        'Content-Length':    Buffer.byteLength(body)
+      },
+      timeout: 300000 /* 5 min */
+    };
+
+    const proxy = https.request(opts, (upstream) => {
+      const chunks = [];
+      upstream.on('data', c => chunks.push(c));
+      upstream.on('end', () => {
+        const raw = Buffer.concat(chunks).toString();
+        try {
+          const data = JSON.parse(raw);
+          console.log(`[Claude] Status: ${upstream.statusCode}, tokens: ${data.usage?.input_tokens || '?'}in/${data.usage?.output_tokens || '?'}out`);
+        } catch(e) { console.log(`[Claude] Status: ${upstream.statusCode}, raw: ${raw.slice(0, 200)}`); }
+        res.writeHead(upstream.statusCode, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        res.end(raw);
       });
+    });
 
-      const data = await resp.json();
-      console.log(`[Claude] Status: ${resp.status}, tokens: ${data.usage?.input_tokens || '?'}in/${data.usage?.output_tokens || '?'}out`);
+    proxy.on('error', (err) => {
+      console.error('[Claude] NETWORK ERROR:', err.message);
+      res.writeHead(502, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+      res.end(JSON.stringify({ error: { message: 'Anthropic API unreachable: ' + err.message } }));
+    });
 
-      res.writeHead(resp.status, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-      return res.end(JSON.stringify(data));
-    } catch (err) {
-      console.error('[Claude] ERROR:', err.message);
-      res.writeHead(500, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-      return res.end(JSON.stringify({ error: { message: err.message } }));
-    }
+    proxy.on('timeout', () => {
+      console.error('[Claude] TIMEOUT after 5min');
+      proxy.destroy();
+      res.writeHead(504, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+      res.end(JSON.stringify({ error: { message: 'Anthropic API request timed out (5 min)' } }));
+    });
+
+    proxy.write(body);
+    proxy.end();
+    return;
   }
 
   res.writeHead(404);
