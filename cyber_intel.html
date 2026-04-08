@@ -375,18 +375,6 @@ body::before{
   <div class="input-panel">
     <div class="panel-title">&#9658; Target Configuration</div>
 
-    <div class="key-row">
-      <span class="key-label">&#128273;&nbsp; API Key</span>
-      <input class="key-input" id="apiKey" type="password"
-        placeholder="sk-ant-api03-... &nbsp; Get yours at console.anthropic.com/settings/keys">
-    </div>
-    <div class="key-hint">
-      Stored only in your browser tab — passed to Anthropic via your local <code>server.js</code> proxy.
-      &nbsp;<a href="https://console.anthropic.com/settings/keys" target="_blank">Get a key &#8599;</a>
-      &nbsp;|&nbsp;
-      <a href="https://console.anthropic.com/settings/billing" target="_blank">Top up credits &#8599;</a>
-    </div>
-
     <div class="inputs-row">
       <div class="field">
         <label class="field-lbl" for="companyInp">Company Website URL</label>
@@ -481,7 +469,7 @@ document.addEventListener('DOMContentLoaded', function () {
   if (bCo)  bCo.addEventListener('click',  function () { onGenerate('company'); });
   if (bSec) bSec.addEventListener('click', function () { onGenerate('sector');  });
 
-  ['apiKey','companyInp','sectorInp'].forEach(function (id) {
+  ['companyInp','sectorInp'].forEach(function (id) {
     var el = document.getElementById(id);
     if (!el) return;
     el.addEventListener('keydown', function (e) {
@@ -526,11 +514,9 @@ var _urlContext = { url:'', domain:'', name:'', tld:'', pathHint:'' };
 
 function onGenerate(mode) {
   _mode = mode;
-  var apiKey  = $id('apiKey').value.trim();
   var rawUrl  = $id('companyInp').value.trim();
   var sector  = $id('sectorInp').value.trim();
 
-  if (!apiKey)  { showErr('Enter your Anthropic API key.'); $id('apiKey').focus(); return; }
   if (!rawUrl)  { showErr('Enter the company website URL (e.g. https://crowdstrike.com).'); $id('companyInp').focus(); return; }
 
   /* Normalise URL — add https:// if missing */
