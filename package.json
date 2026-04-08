@@ -1,0 +1,12 @@
+{
+  "name": "cyberintel",
+  "version": "1.0.0",
+  "description": "CyberIntel M&A Intelligence Platform — local proxy server",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

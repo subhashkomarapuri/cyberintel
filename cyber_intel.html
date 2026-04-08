@@ -1,0 +1,1248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CyberIntel — M&A Intelligence Platform</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Bebas+Neue&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ── Design tokens ─────────────────────────────────── */
+:root{
+  --bg:       #05070e;
+  --bg2:      #090d18;
+  --panel:    #0c1120;
+  --border:   #16213a;
+  --border2:  #1e2e4a;
+  --accent:   #00c8f0;
+  --blue:     #0057e0;
+  --purple:   #6c3fff;
+  --green:    #00d97a;
+  --red:      #ff3c6e;
+  --yellow:   #f5c400;
+  --text:     #e4eaf5;
+  --text2:    #8494b2;
+  --text3:    #3d5070;
+  --mono:     'IBM Plex Mono', monospace;
+  --sans:     'Inter', sans-serif;
+  --display:  'Bebas Neue', cursive;
+}
+
+/* ── Reset & base ──────────────────────────────────── */
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh;overflow-x:hidden;}
+
+/* Subtle grid overlay */
+body::before{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background-image:
+    linear-gradient(rgba(0,200,240,.025) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(0,200,240,.025) 1px,transparent 1px);
+  background-size:44px 44px;
+}
+
+.shell{position:relative;z-index:1;max-width:1200px;margin:0 auto;padding:0 28px 100px;}
+
+/* ── Header ────────────────────────────────────────── */
+.site-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:22px 0 18px;
+  border-bottom:1px solid var(--border);
+  margin-bottom:40px;
+}
+.logo{display:flex;align-items:center;gap:11px;}
+.logo-hex{
+  width:34px;height:34px;flex-shrink:0;
+  background:linear-gradient(135deg,var(--accent),var(--blue));
+  clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-size:13px;font-weight:600;color:#000;
+}
+.logo-name{font-family:var(--display);font-size:21px;letter-spacing:2px;}
+.logo-name em{color:var(--accent);font-style:normal;}
+.hdr-right{font-family:var(--mono);font-size:10px;color:var(--text3);text-align:right;line-height:1.8;}
+.live-dot{
+  display:inline-block;width:6px;height:6px;border-radius:50%;
+  background:var(--green);animation:blink 2.2s ease-in-out infinite;
+  margin-right:5px;vertical-align:middle;
+}
+@keyframes blink{0%,100%{opacity:1;}55%{opacity:.2;}}
+
+/* ── Input panel ───────────────────────────────────── */
+.input-panel{
+  background:var(--panel);border:1px solid var(--border2);border-radius:6px;
+  padding:28px 30px 24px;margin-bottom:32px;position:relative;overflow:hidden;
+}
+.input-panel::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,var(--blue),var(--accent),var(--purple));
+}
+.panel-title{
+  font-family:var(--mono);font-size:10px;letter-spacing:3px;
+  color:var(--accent);text-transform:uppercase;margin-bottom:18px;
+}
+
+/* API key row */
+.key-row{
+  display:flex;align-items:center;gap:10px;
+  background:rgba(245,196,0,.03);border:1px solid rgba(245,196,0,.2);
+  border-radius:4px;padding:10px 14px;margin-bottom:8px;
+}
+.key-label{font-family:var(--mono);font-size:10px;color:var(--yellow);letter-spacing:2px;white-space:nowrap;}
+.key-input{
+  flex:1;min-width:0;background:var(--bg);border:1px solid var(--border2);
+  border-radius:3px;padding:7px 12px;color:var(--text);
+  font-family:var(--mono);font-size:12px;outline:none;transition:border-color .15s;
+}
+.key-input:focus{border-color:var(--yellow);}
+.key-input::placeholder{color:var(--text3);}
+.key-hint{font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:18px;line-height:1.6;}
+.key-hint a{color:var(--accent);text-decoration:none;}
+.key-hint a:hover{text-decoration:underline;}
+
+/* Inputs row */
+.inputs-row{display:grid;grid-template-columns:1fr 1fr auto;gap:14px;align-items:end;}
+.field{display:flex;flex-direction:column;gap:6px;}
+.field-lbl{font-family:var(--mono);font-size:10px;color:var(--text2);letter-spacing:2px;text-transform:uppercase;}
+.field-inp{
+  background:var(--bg);border:1px solid var(--border2);border-radius:3px;
+  padding:11px 14px;color:var(--text);font-family:var(--mono);font-size:13px;
+  outline:none;transition:border-color .15s;width:100%;
+}
+.field-inp:focus{border-color:var(--accent);}
+.field-inp::placeholder{color:var(--text3);}
+
+.gen-btn{
+  height:44px;padding:0 26px;
+  background:linear-gradient(135deg,var(--blue),var(--accent));
+  border:none;border-radius:3px;
+  color:#000;font-family:var(--mono);font-size:12px;font-weight:600;
+  letter-spacing:2px;text-transform:uppercase;
+  cursor:pointer;transition:opacity .15s,transform .1s;white-space:nowrap;
+  display:flex;align-items:center;gap:7px;
+}
+.gen-btn:hover:not(:disabled){opacity:.88;transform:translateY(-1px);}
+.gen-btn:active:not(:disabled){transform:translateY(0);}
+.gen-btn:disabled{opacity:.38;cursor:not-allowed;transform:none;}
+
+/* ── Error banner ──────────────────────────────────── */
+.err-banner{
+  display:none;align-items:flex-start;gap:10px;
+  background:rgba(255,60,110,.06);border:1px solid rgba(255,60,110,.3);
+  border-radius:4px;padding:14px 18px;margin-bottom:24px;
+}
+.err-banner.show{display:flex;}
+.err-icon{color:var(--red);font-size:14px;flex-shrink:0;margin-top:1px;}
+.err-msg{font-family:var(--mono);font-size:11px;color:var(--red);line-height:1.6;}
+
+/* ── Progress panel ────────────────────────────────── */
+.progress-panel{
+  display:none;background:var(--panel);border:1px solid var(--border);
+  border-radius:6px;padding:26px 30px;margin-bottom:28px;
+}
+.progress-panel.show{display:block;}
+.prog-hdr{display:flex;align-items:center;gap:9px;margin-bottom:18px;}
+.prog-title{font-family:var(--mono);font-size:11px;letter-spacing:2px;color:var(--accent);text-transform:uppercase;}
+.prog-track{background:var(--bg);border-radius:2px;height:3px;overflow:hidden;margin-bottom:14px;}
+.prog-fill{height:100%;background:linear-gradient(90deg,var(--blue),var(--accent));border-radius:2px;transition:width .5s ease;width:0%;}
+.prog-steps{display:flex;flex-direction:column;gap:5px;}
+.prog-step{font-family:var(--mono);font-size:11px;color:var(--text3);display:flex;align-items:center;gap:8px;transition:color .25s;}
+.prog-step.running{color:var(--accent);}
+.prog-step.done{color:var(--green);}
+.step-ic{width:13px;flex-shrink:0;font-size:11px;}
+
+/* ── Report container ──────────────────────────────── */
+.report-wrap{display:none;}
+.report-wrap.show{display:block;}
+
+/* Report header */
+.rpt-header{
+  display:grid;grid-template-columns:1fr auto;
+  align-items:start;gap:20px;
+  margin-bottom:28px;padding-bottom:24px;
+  border-bottom:1px solid var(--border);
+}
+.rpt-company{font-family:var(--display);font-size:54px;letter-spacing:3px;line-height:1;color:var(--text);}
+.rpt-badges{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px;}
+.rbadge{
+  font-family:var(--mono);font-size:9px;letter-spacing:2px;text-transform:uppercase;
+  padding:3px 9px;border-radius:2px;border:1px solid;
+}
+.rb-blue  {color:var(--accent); border-color:var(--accent); background:rgba(0,200,240,.06);}
+.rb-green {color:var(--green);  border-color:var(--green);  background:rgba(0,217,122,.06);}
+.rb-purple{color:var(--purple); border-color:var(--purple); background:rgba(108,63,255,.06);}
+.rb-yellow{color:var(--yellow); border-color:var(--yellow); background:rgba(245,196,0,.06);}
+
+.rpt-meta{
+  background:var(--panel);border:1px solid var(--border);
+  border-radius:4px;padding:18px;min-width:190px;text-align:right;
+}
+.meta-lbl{font-family:var(--mono);font-size:9px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:3px;}
+.meta-val{font-family:var(--mono);font-size:11px;color:var(--text2);}
+.conf-row{margin-top:12px;}
+.conf-track{background:var(--bg);border-radius:2px;height:3px;overflow:hidden;margin-top:5px;}
+.conf-fill{height:100%;border-radius:2px;background:linear-gradient(90deg,var(--green),var(--accent));}
+.conf-pct{font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:3px;text-align:right;}
+
+/* Export bar */
+.export-bar{
+  display:flex;align-items:center;justify-content:space-between;
+  background:var(--panel);border:1px solid var(--border2);
+  border-radius:4px;padding:12px 18px;margin-bottom:24px;
+}
+.export-lbl{font-family:var(--mono);font-size:10px;color:var(--text2);letter-spacing:2px;text-transform:uppercase;}
+.export-btns{display:flex;gap:8px;}
+.exp-btn{
+  display:flex;align-items:center;gap:7px;
+  font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:1px;
+  padding:8px 16px;border-radius:3px;border:1px solid;cursor:pointer;
+  transition:all .15s;white-space:nowrap;
+}
+.exp-btn svg{width:13px;height:13px;flex-shrink:0;}
+.exp-html{color:var(--green);border-color:rgba(0,217,122,.35);background:rgba(0,217,122,.07);}
+.exp-html:hover{background:rgba(0,217,122,.14);border-color:var(--green);}
+.exp-txt {color:var(--accent);border-color:rgba(0,200,240,.35);background:rgba(0,200,240,.07);}
+.exp-txt:hover{background:rgba(0,200,240,.14);border-color:var(--accent);}
+.exp-btn:disabled{opacity:.35;cursor:not-allowed;}
+.exp-pdf {color:#ff6b6b;border-color:rgba(255,107,107,.35);background:rgba(255,107,107,.07);}
+.exp-pdf:hover:not(:disabled){background:rgba(255,107,107,.14);border-color:#ff6b6b;}
+.exp-docx{color:#a78bfa;border-color:rgba(167,139,250,.35);background:rgba(167,139,250,.07);}
+.exp-docx:hover:not(:disabled){background:rgba(167,139,250,.14);border-color:#a78bfa;}
+
+/* Sections */
+.section{
+  margin-bottom:12px;background:var(--panel);
+  border:1px solid var(--border);border-radius:6px;overflow:hidden;
+}
+.sec-hdr{
+  display:flex;align-items:center;gap:13px;
+  padding:16px 22px;border-bottom:1px solid var(--border);
+  background:var(--bg2);cursor:pointer;user-select:none;
+  transition:background .15s;
+}
+.sec-hdr:hover{background:#0d1525;}
+.sec-num{font-family:var(--mono);font-size:10px;color:var(--text3);letter-spacing:2px;width:22px;flex-shrink:0;}
+.sec-title{font-family:var(--display);font-size:17px;letter-spacing:2px;color:var(--text);flex:1;}
+.sec-chev{font-size:11px;color:var(--text3);transition:transform .25s;flex-shrink:0;}
+.section.closed .sec-chev{transform:rotate(-90deg);}
+.section.closed .sec-body{display:none;}
+.sec-body{padding:22px;}
+
+/* Report content styles (used by AI-generated HTML) */
+.rc h3{
+  font-family:var(--mono);font-size:10px;letter-spacing:3px;text-transform:uppercase;
+  color:var(--accent);margin:22px 0 11px;padding-bottom:6px;
+  border-bottom:1px solid var(--border);
+}
+.rc h3:first-child{margin-top:0;}
+.rc p{font-size:13.5px;line-height:1.78;color:var(--text2);margin-bottom:11px;}
+.rc ul{list-style:none;margin-bottom:13px;}
+.rc ul li{
+  font-size:13px;color:var(--text2);line-height:1.65;
+  padding:5px 0 5px 17px;position:relative;
+  border-bottom:1px solid rgba(22,33,58,.6);
+}
+.rc ul li:last-child{border-bottom:none;}
+.rc ul li::before{content:'▸';position:absolute;left:0;top:7px;color:var(--accent);font-size:10px;}
+.rc strong{color:var(--text);font-weight:600;}
+
+/* Source tags */
+.source-tag{
+  display:inline-flex;align-items:center;gap:3px;
+  font-family:var(--mono);font-size:9px;color:var(--text3);
+  border:1px solid var(--border);border-radius:2px;
+  padding:1px 6px;margin-left:3px;text-decoration:none;
+  transition:color .15s,border-color .15s;vertical-align:middle;
+}
+.source-tag:hover{color:var(--accent);border-color:var(--accent);}
+
+/* Metric grid */
+.metric-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:10px;margin:14px 0;}
+.metric-card{
+  background:var(--bg);border:1px solid var(--border);border-radius:4px;
+  padding:15px;position:relative;overflow:hidden;
+}
+.metric-card::after{content:'';position:absolute;top:0;left:0;right:0;height:2px;}
+.metric-card.blue::after  {background:var(--accent);}
+.metric-card.green::after {background:var(--green);}
+.metric-card.purple::after{background:var(--purple);}
+.metric-card.yellow::after{background:var(--yellow);}
+.metric-card.red::after   {background:var(--red);}
+.metric-label{font-family:var(--mono);font-size:9px;letter-spacing:2px;color:var(--text3);text-transform:uppercase;margin-bottom:7px;}
+.metric-value{font-family:var(--display);font-size:28px;letter-spacing:1px;color:var(--text);line-height:1;margin-bottom:3px;}
+.metric-sub{font-family:var(--mono);font-size:9px;color:var(--text3);}
+
+/* Data table */
+.data-table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11px;margin:10px 0;}
+.data-table th{
+  text-align:left;padding:9px 11px;background:var(--bg2);
+  color:var(--text3);font-size:9px;letter-spacing:2px;text-transform:uppercase;font-weight:400;
+  border-bottom:1px solid var(--border2);
+}
+.data-table td{
+  padding:9px 11px;color:var(--text2);font-size:11px;
+  border-bottom:1px solid var(--border);vertical-align:top;
+}
+.data-table tr:last-child td{border-bottom:none;}
+.data-table tbody tr:hover td{background:rgba(0,200,240,.02);}
+.td-highlight{color:var(--text);font-weight:500;}
+.td-green{color:var(--green);}
+.td-red  {color:var(--red);}
+.td-accent{color:var(--accent);}
+.td-yellow{color:var(--yellow);}
+
+/* Timeline */
+.timeline{padding:6px 0;}
+.timeline-item{display:grid;grid-template-columns:105px 18px 1fr;gap:0 14px;margin-bottom:2px;}
+.timeline-date{font-family:var(--mono);font-size:10px;color:var(--text3);text-align:right;padding-top:13px;}
+.timeline-line{display:flex;flex-direction:column;align-items:center;}
+.timeline-dot{
+  width:8px;height:8px;border-radius:50%;margin-top:14px;flex-shrink:0;
+  background:var(--accent);box-shadow:0 0 7px rgba(0,200,240,.5);
+}
+.timeline-dot.green {background:var(--green); box-shadow:0 0 7px rgba(0,217,122,.5);}
+.timeline-dot.purple{background:var(--purple);box-shadow:0 0 7px rgba(108,63,255,.5);}
+.timeline-dot.yellow{background:var(--yellow);box-shadow:0 0 7px rgba(245,196,0,.5);}
+.timeline-connector{flex:1;width:1px;background:var(--border);margin-top:3px;}
+.timeline-content{
+  background:var(--bg);border:1px solid var(--border);
+  border-radius:3px;padding:12px 14px;margin-bottom:6px;
+}
+.timeline-event-title{font-size:13px;color:var(--text);font-weight:500;margin-bottom:3px;}
+.timeline-event-desc{font-size:12px;color:var(--text2);line-height:1.6;}
+
+/* Callouts */
+.callout{
+  border-left:3px solid;padding:12px 15px;margin:12px 0;
+  background:rgba(255,255,255,.018);border-radius:0 3px 3px 0;
+  font-size:13px;line-height:1.65;color:var(--text2);
+}
+.callout.accent{border-color:var(--accent);}
+.callout.green {border-color:var(--green);}
+.callout.red   {border-color:var(--red);}
+.callout.yellow{border-color:var(--yellow);}
+
+/* Tags & divider */
+.tag-row{display:flex;flex-wrap:wrap;gap:7px;margin:9px 0;}
+.tag{
+  font-family:var(--mono);font-size:10px;letter-spacing:1px;
+  padding:4px 9px;border-radius:2px;border:1px solid var(--border2);
+  color:var(--text2);background:var(--bg);
+}
+.tag.accent{color:var(--accent);border-color:rgba(0,200,240,.3);background:rgba(0,200,240,.05);}
+.tag.green {color:var(--green); border-color:rgba(0,217,122,.3);background:rgba(0,217,122,.05);}
+.divider{height:1px;background:var(--border);margin:18px 0;}
+
+/* Disclaimer */
+.disclaimer{
+  margin-top:44px;padding:18px 22px;
+  border:1px solid var(--border);border-radius:4px;background:var(--panel);
+  font-family:var(--mono);font-size:10px;color:var(--text3);line-height:1.75;
+}
+.disclaimer strong{color:var(--text2);}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:5px;}
+::-webkit-scrollbar-track{background:var(--bg);}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px;}
+
+/* Responsive */
+@media(max-width:720px){
+  .inputs-row{grid-template-columns:1fr;}
+  .rpt-header{grid-template-columns:1fr;}
+  .rpt-company{font-size:38px;}
+  .metric-grid{grid-template-columns:repeat(2,1fr);}
+  .export-bar{flex-direction:column;align-items:flex-start;gap:10px;}
+}
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- ── Header ── -->
+  <header class="site-header">
+    <div class="logo">
+      <div class="logo-hex">CI</div>
+      <div class="logo-name">CYBER<em>INTEL</em></div>
+    </div>
+    <div class="hdr-right">
+      <div><span class="live-dot"></span>LIVE DATA FEED</div>
+      <div>M&amp;A INTELLIGENCE PLATFORM</div>
+      <div id="hdrDate"></div>
+    </div>
+  </header>
+
+  <!-- ── Input panel ── -->
+  <div class="input-panel">
+    <div class="panel-title">&#9658; Target Configuration</div>
+
+    <div class="key-row">
+      <span class="key-label">&#128273;&nbsp; API Key</span>
+      <input class="key-input" id="apiKey" type="password"
+        placeholder="sk-ant-api03-... &nbsp; Get yours at console.anthropic.com/settings/keys">
+    </div>
+    <div class="key-hint">
+      Stored only in your browser tab — passed to Anthropic via your local <code>server.js</code> proxy.
+      &nbsp;<a href="https://console.anthropic.com/settings/keys" target="_blank">Get a key &#8599;</a>
+      &nbsp;|&nbsp;
+      <a href="https://console.anthropic.com/settings/billing" target="_blank">Top up credits &#8599;</a>
+    </div>
+
+    <div class="inputs-row">
+      <div class="field">
+        <label class="field-lbl" for="companyInp">Company Website URL</label>
+        <input class="field-inp" id="companyInp" type="url"
+          placeholder="e.g. https://crowdstrike.com">
+      </div>
+      <div class="field">
+        <label class="field-lbl" for="sectorInp">Sector Focus <span style="color:var(--text3)">(optional)</span></label>
+        <input class="field-inp" id="sectorInp" type="text"
+          placeholder="e.g. Endpoint Security, Cloud Security, IAM...">
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <button class="gen-btn" id="genBtnCo" style="background:linear-gradient(135deg,#0055dd,#00c8f0);">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          Company Report
+        </button>
+        <button class="gen-btn" id="genBtnSec" style="background:linear-gradient(135deg,#6a00dd,#0055dd);letter-spacing:1.5px;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          Sector Report
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Error banner ── -->
+  <div class="err-banner" id="errBanner">
+    <span class="err-icon">&#9888;</span>
+    <span class="err-msg" id="errMsg"></span>
+  </div>
+
+  <!-- ── Progress panel ── -->
+  <div class="progress-panel" id="progPanel">
+    <div class="prog-hdr">
+      <span class="live-dot"></span>
+      <span class="prog-title">Executing Intelligence Gathering Sequence</span>
+    </div>
+    <div class="prog-track"><div class="prog-fill" id="progFill"></div></div>
+    <div class="prog-steps" id="progSteps"></div>
+  </div>
+
+  <!-- ── Report ── -->
+  <div class="report-wrap" id="reportWrap"></div>
+
+</div><!-- /shell -->
+
+<script>
+(function () {
+'use strict';
+
+/* ── Constants ───────────────────────────────────── */
+var STEPS = [
+  'Querying Crunchbase funding & cap table data...',
+  'Scanning LinkedIn for executive & headcount signals...',
+  'Pulling Google News — recent coverage & events...',
+  'Analysing SEC filings & public market data...',
+  'Aggregating 2026 YTD M&A deal flow...',
+  'Scanning cybersecurity conference calendar...',
+  'Compiling competitive landscape & multiples...',
+  'Synthesising 8-section intelligence report...'
+];
+
+var CO_TITLES = [
+  'About the Company',
+  "Company Transactions & Deal Analysis",
+  'Executive Summary — Company Snapshot',
+  'News & Events — Company Specific',
+  'Public Markets & Peer Benchmarking'
+];
+var SEC_TITLES = [
+  'Sector Overview & 2026 Activity Dashboard',
+  'Industry Insights & Market Trends (H1 2026)',
+  'Conferences & Events',
+  'M&A Activity — Broader Market'
+];
+
+/* ── State ───────────────────────────────────────── */
+var _timer      = null;
+var _controller = null;
+var _sections   = [];
+var _co         = '';
+var _coUrl      = '';
+var _sector     = '';
+var _date       = '';
+
+/* ── Init ────────────────────────────────────────── */
+document.addEventListener('DOMContentLoaded', function () {
+  var hd = document.getElementById('hdrDate');
+  if (hd) hd.textContent = new Date().toLocaleDateString('en-US', { year:'numeric', month:'short', day:'numeric' }).toUpperCase();
+
+  var bCo  = document.getElementById('genBtnCo');
+  var bSec = document.getElementById('genBtnSec');
+  if (bCo)  bCo.addEventListener('click',  function () { onGenerate('company'); });
+  if (bSec) bSec.addEventListener('click', function () { onGenerate('sector');  });
+
+  ['apiKey','companyInp','sectorInp'].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') {
+        var b = document.getElementById('genBtnCo');
+        if (b && !b.disabled) onGenerate('company');
+      }
+    });
+  });
+});
+
+/* ── UI helpers ──────────────────────────────────── */
+function $id(id) { return document.getElementById(id); }
+
+function setFill(pct) { $id('progFill').style.width = pct + '%'; }
+
+function setStep(i, state) {
+  var el = $id('step' + i);
+  if (!el) return;
+  el.classList.remove('running', 'done');
+  if (state) el.classList.add(state);
+  el.querySelector('.step-ic').textContent =
+    state === 'done' ? '✓' : state === 'running' ? '◈' : '○';
+}
+
+function showErr(msg) {
+  $id('errMsg').textContent = msg;
+  $id('errBanner').classList.add('show');
+}
+
+function hideErr() { $id('errBanner').classList.remove('show'); }
+
+function esc(s) {
+  return String(s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+/* ── Generate ────────────────────────────────────── */
+var _mode       = 'company'; // 'company' | 'sector'
+var _urlContext = { url:'', domain:'', name:'', tld:'', pathHint:'' };
+
+function onGenerate(mode) {
+  _mode = mode;
+  var apiKey  = $id('apiKey').value.trim();
+  var rawUrl  = $id('companyInp').value.trim();
+  var sector  = $id('sectorInp').value.trim();
+
+  if (!apiKey)  { showErr('Enter your Anthropic API key.'); $id('apiKey').focus(); return; }
+  if (!rawUrl)  { showErr('Enter the company website URL (e.g. https://crowdstrike.com).'); $id('companyInp').focus(); return; }
+
+  /* Normalise URL — add https:// if missing */
+  var companyUrl = rawUrl;
+  if (!/^https?:\/\//i.test(companyUrl)) companyUrl = 'https://' + companyUrl;
+
+  /* Validate it looks like a URL */
+  try { new URL(companyUrl); } catch(e) {
+    showErr('Please enter a valid website URL, e.g. https://crowdstrike.com');
+    $id('companyInp').focus(); return;
+  }
+
+  /* Parse URL into rich context without asking the model to browse it */
+  var parsedUrl  = new URL(companyUrl);
+  var hostname   = parsedUrl.hostname.replace(/^www\./, '');
+  var parts      = hostname.split('.');
+  var domainCore = parts[0]; /* e.g. 'crowdstrike' from 'crowdstrike.com' */
+  var tld        = parts.slice(1).join('.'); /* e.g. 'com', 'co.uk', 'ch' */
+  var pathHint   = parsedUrl.pathname.replace(/^\//, '').split('/')[0] || ''; /* first path segment */
+  /* Build display name: capitalise, handle hyphens e.g. 'sentinel-one' → 'Sentinel-One' */
+  var company = domainCore
+    .split('-')
+    .map(function(w){ return w.charAt(0).toUpperCase() + w.slice(1); })
+    .join('');
+  /* Build context object passed to prompts */
+  _urlContext = {
+    url:       companyUrl,
+    domain:    hostname,
+    name:      company,
+    tld:       tld,
+    pathHint:  pathHint
+  };
+
+  hideErr();
+
+  _co     = company;
+  _coUrl  = companyUrl;
+  _sector = sector;
+  _date   = new Date().toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
+
+  var btnCo  = $id('genBtnCo');
+  var btnSec = $id('genBtnSec');
+  btnCo.disabled = btnSec.disabled = true;
+  $id('reportWrap').classList.remove('show');
+  $id('reportWrap').innerHTML = '';
+
+  var pp = $id('progPanel');
+  pp.classList.add('show');
+  $id('progSteps').innerHTML = STEPS.map(function (s, i) {
+    return '<div class="prog-step" id="step' + i + '"><span class="step-ic">○</span><span>' + s + '</span></div>';
+  }).join('');
+  setFill(0);
+
+  var si = 0;
+  function tick() {
+    if (si > 0) setStep(si - 1, 'done');
+    if (si < STEPS.length) {
+      setStep(si, 'running');
+      setFill(Math.round((si + 1) / STEPS.length * 82));
+      si++;
+      _timer = setTimeout(tick, 1850);
+    }
+  }
+  tick();
+
+  if (_controller) _controller.abort();
+  _controller = new AbortController();
+  var timeoutId = setTimeout(function () { _controller.abort(); }, 900000);
+
+  var sNote = sector ? ' within the ' + sector + ' sector' : ' in the cybersecurity sector';
+  var prompt = mode === 'company' ? buildCompanyPrompt(company, sNote, _date) : buildSectorPrompt(company, sNote, _date);
+
+  fetch('/api/messages', {
+    signal: _controller.signal,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 8000,
+      messages: [{ role: 'user', content: prompt }]
+    })
+  })
+  .then(function (res) {
+    clearTimeout(timeoutId);
+    if (!res.ok) return res.json().then(function (b) { throw new Error((b.error && b.error.message) || 'HTTP ' + res.status); });
+    return res.json();
+  })
+  .then(function (data) {
+    clearTimeout(_timer);
+    STEPS.forEach(function (_, i) { setStep(i, 'done'); });
+    setFill(100);
+    var rawHtml = (data.content || []).filter(function (b) { return b.type === 'text'; }).map(function (b) { return b.text; }).join('\n');
+    render(company, sector, rawHtml, _date, mode);
+  })
+  .catch(function (err) {
+    clearTimeout(timeoutId); clearTimeout(_timer);
+    pp.classList.remove('show');
+    btnCo.disabled = btnSec.disabled = false;
+    var m = err.message || String(err);
+    if (/abort/i.test(m))             showErr('Request timed out. Make sure server.js is running.');
+    else if (/401|403|invalid/i.test(m)) showErr('Invalid API key. Check console.anthropic.com/settings/keys');
+    else if (/429|rate_limit|credit/i.test(m)) showErr('Credit balance too low or rate limit hit. Top up at console.anthropic.com/settings/billing');
+    else if (/Failed to fetch|network/i.test(m)) showErr('Cannot reach proxy server. Run: node server.js');
+    else showErr('Error: ' + m);
+  });
+}
+
+
+
+/* ── Company Prompt (5 sections) ─────────────────── */
+function buildCompanyPrompt(co, sNote, today) {
+  return [
+    'You are a Senior M&A Intelligence Analyst. Today: ' + today + '.',
+    'COMPANY IDENTIFICATION:',
+    '  Official website: ' + _urlContext.url,
+    '  Domain: ' + _urlContext.domain + ' | TLD: ' + _urlContext.tld,
+    '  Extracted name: ' + _urlContext.name + sNote,
+    '  Path hint: ' + (_urlContext.pathHint || 'none'),
+    'Use the domain name, TLD, and your training knowledge to identify the exact company.',
+    'The TLD and domain are strong signals: .ch = Switzerland, .de = Germany, .io = tech startup, .gov = government.',
+    'If you recognise this company from training data, use that knowledge fully.',
+    'If the company is not well known, state that clearly and use industry benchmarks for estimation.',
+    'DO NOT say you cannot access the URL — you do not need to. Use the domain as an identifier.',
+    'Use the extracted name as the report display name unless your training data shows a different official brand name.',
+    '',
+    'STRICT OUTPUT RULES:',
+    '- THOROUGHNESS: Be exhaustive. Minimum 6 bullets per subsection. Every table needs minimum 5 rows.',
+    '- Output exactly 5 HTML sections, each starting with [SECTION:N] (N=1 to 5).',
+    '- Bullets only. NO prose paragraphs. Use <ul><li> for all insights.',
+    '- Every fact must have a source: <a class="source-tag" href="URL" target="_blank">SOURCE</a>',
+    '- NEVER leave any field blank. When exact data is unavailable, use calibrated estimates with these rules:',
+    '  ESTIMATION RULES — follow these benchmarks precisely:',
+    '  VALUATION: Seed=$2M-$15M | SeriesA=$15M-$80M | SeriesB=$80M-$300M | SeriesC=$300M-$800M | SeriesD+=$800M-$3B | Growth/Late=$1B-$10B',
+    '  REVENUE MULTIPLES: High-growth SaaS(>50% YoY)=15-25x ARR | Mid-growth(25-50%)=8-15x | Slow-growth(<25%)=4-8x | Declining=2-4x',
+    '  GROSS MARGIN: SaaS platform=70-85% | Security software=65-80% | Services/Training=35-55% | Hardware+software=50-65%',
+    '  HEADCOUNT vs FUNDING: Seed=5-25 employees | SeriesA=25-80 | SeriesB=80-200 | SeriesC=200-600 | SeriesD+=600-2000',
+    '  ARR per EMPLOYEE: Early stage=$80K-$120K | Growth stage=$120K-$180K | Mature=$180K-$300K',
+    '  BURN RATE: Seed=$200K-$600K/mo | SeriesA=$500K-$1.5M/mo | SeriesB=$1.5M-$4M/mo | SeriesC=$4M-$10M/mo',
+    '  RUNWAY: Healthy=18-24mo after raise | Warning=12-18mo | Danger=<12mo',
+    '  DEAL SIZE (M&A): Acqui-hire=$5M-$30M | Product bolt-on=$20M-$150M | Strategic=$100M-$1B | Transformative=$1B+',
+    '  EV/NTM REVENUE peers: CRWD=16-20x | PANW=10-13x | S=6-9x | ZS=11-14x | FTNT=8-11x | OKTA=7-10x | NET=14-18x',
+    '  NRR benchmarks: Best-in-class=>130% | Good=110-130% | Average=100-110% | Concerning=<100%',
+    '  YoY GROWTH: Hypergrowth=>80% | Fast=40-80% | Healthy=20-40% | Slow=5-20% | Stalling=<5%',
+    '  ALWAYS provide a range not a single number for estimates. Format: Est. $X–$Y',
+    '  ALWAYS state the basis: (based on [SeriesB stage / peer multiples / headcount proxy])',
+    '  NEVER fabricate specific named investors, customers, or deal terms not in public record',
+    '  NEVER invent press releases, product names, or executive quotes',
+    '  If truly unknown, write: Est. $X–$Y (range based on [method]) — do not narrow it artificially',
+    '- Allowed HTML: <h3> <ul><li> <strong> <table class="data-table"><thead><tr><th><tbody><tr><td>',
+    '  <div class="metric-grid"><div class="metric-card blue|green|red|yellow">',
+    '  <div class="metric-label"><div class="metric-value"><div class="metric-sub">',
+    '  <div class="callout accent|green|red|yellow">',
+    '- INTERESTING INSIGHTS COLUMN: Every table must end with an "Interesting Insights" column.',
+    '  Keep each cell brief (1-2 sentences max). Focus on what a competitor or acquirer must know:',
+    '  signals, red flags, strategic implications, unusual moves, anomalies.',
+    '',
+    '[SECTION:1] ABOUT THE COMPANY',
+    '- Metric cards (4): Founded Year | Total Employees (Est.) | Total Raised | Valuation (Est.)',
+    '- Bullets: founders, CEO background, key executives (CTO CFO COO), board members, lead investors',
+    '- Bullets: headcount growth trend last 12 months, key milestones',
+    '',
+    '[SECTION:2] COMPANY TRANSACTIONS & DEAL ANALYSIS',
+    '- Table 1 Funding Rounds: Date | Round | Amount | Lead Investor | Valuation (Est.) | Use of Funds | Source | Interesting Insights',
+    '- Table 2 Acquisitions: Date | Target | Value (Est.) | Rationale | Integration Status | Source | Interesting Insights',
+    '- Table 3 Partnerships: Date | Partner | Deal Type | Value (Est.) | Strategic Impact | Source | Interesting Insights',
+    '- h3 TRANSACTION ANALYSIS: bullets on capital efficiency, funding velocity, investor quality,',
+    '  valuation progression, burn rate estimate, acquisition strategy pattern',
+    '',
+    '[SECTION:3] EXECUTIVE SUMMARY — COMPANY SNAPSHOT',
+    '- Metric cards (4): ARR/Revenue (Est.) | YoY Growth % (Est.) | Gross Margin (Est.) | NRR (Est.)',
+    '- h3 Competitive Positioning: top 3 differentiators, key customer segments, GTM motion',
+    '- h3 Key Risks and Opportunities: top 3 risks, top 3 growth opportunities',
+    '- h3 Strategic Outlook: likely next steps, 12-month milestones',
+    '',
+    '[SECTION:4] NEWS & EVENTS — COMPANY SPECIFIC',
+    '- Table: Headline | Publication | Date | Key Takeaway | Strategic Implication | Link | Interesting Insights',
+    '  (5 rows, about ' + co + ' only)',
+    '- h3 Recent Product Launches: product name, launch date, target market, competitive significance',
+    '- h3 Leadership Changes: exec name, old role to new role, date, strategic significance',
+    '',
+    '[SECTION:5] PUBLIC MARKETS & PEER BENCHMARKING',
+    '- Metric card: Private or Public status with valuation range',
+    '- Peer comp table: ' + co + ' | CRWD | PANW | S | ZS | FTNT | OKTA | NET',
+    '  Columns: Company | Status | Mkt Cap/Val (Est.) | EV/NTM Rev | EV/NTM EBITDA | Rev Growth | Gross Margin | YTD Return | Source | Interesting Insights',
+    '- Bullets: where ' + co + ' sits vs peers, implied valuation range based on peer multiples'
+  ].join('\n');
+}
+
+/* ── Sector Prompt (4 sections) ──────────────────── */
+function buildSectorPrompt(co, sNote, today) {
+  return [
+    'You are a Senior M&A Intelligence Analyst. Today: ' + today + '.',
+    'COMPANY IDENTIFICATION:',
+    '  Official website: ' + _urlContext.url,
+    '  Domain: ' + _urlContext.domain + ' | TLD: ' + _urlContext.tld,
+    '  Extracted name: ' + _urlContext.name + sNote,
+    'Use the domain and your training knowledge to identify the company and its sector.',
+    'DO NOT say you cannot access the URL — use the domain as an identifier only.',
+    'Generate the sector report for the industry this company operates in.',
+    '',
+    'STRICT OUTPUT RULES:',
+    '- THOROUGHNESS: Be exhaustive. Minimum 6 bullets per subsection. Every table needs minimum 5 rows.',
+    '- Output exactly 4 HTML sections, each starting with [SECTION:N] (N=1 to 4).',
+    '- Bullets only. NO prose paragraphs. Use <ul><li> for all insights.',
+    '- Every fact must have a source: <a class="source-tag" href="URL" target="_blank">SOURCE</a>',
+    '- NEVER leave any field blank. When exact data unavailable, use calibrated estimates:',
+    '  SECTOR DEAL VOLUME: Cybersecurity ~300-400 deals/year | ~25-35/month | YTD 2026 ~$18-22B total',
+    '  PE vs STRATEGIC: 35-40% PE | 60-65% strategic in cybersecurity historically',
+    '  DEAL SIZE: Sub-$50M=bolt-on | $50-$200M=mid-market | $200M-$1B=large | $1B+=mega',
+    '  EV/ARR by stage: <$5M ARR=8-15x | $5-$20M=10-18x | $20-$50M=12-20x | $50-$100M=10-16x | $100M+=8-14x',
+    '  CONFERENCE ATTENDANCE: Tier1(RSA/BlackHat)=20K-40K | Tier2=5K-15K | Tier3=500-3K',
+    '  ALWAYS use ranges not single numbers. Format: Est. $X–$Y (basis stated)',
+    '  NEVER fabricate company names, deal terms, or acquirer identities not in public record',
+    '- Allowed HTML: <h3> <ul><li> <strong> <table class="data-table"><thead><tr><th><tbody><tr><td>',
+    '  <div class="metric-grid"><div class="metric-card blue|green|red|yellow">',
+    '  <div class="metric-label"><div class="metric-value"><div class="metric-sub">',
+    '- INTERESTING INSIGHTS COLUMN: Every table must end with an "Interesting Insights" column.',
+    '  Keep each cell brief (1-2 sentences max). Focus on what a competitor or acquirer must know:',
+    '  signals, red flags, strategic implications, unusual moves, anomalies.',
+    '',
+    '[SECTION:1] SECTOR OVERVIEW & 2026 ACTIVITY DASHBOARD',
+    '- Metric cards (4): YTD Deal Count | YTD M&A Volume ($B Est.) | Avg Deal Size (Est.) | PE vs Strategic %',
+    '- h3 YTD 2026 Financing: Table: Stage | Deal Count | Total Volume (Est.) | Median Size (Est.) | YoY Change | Interesting Insights',
+    '- h3 YTD 2026 M&A: Table: Acquirer | Target | Value (Est.) | Sector | Date | Rationale | Source | Interesting Insights',
+    '- h3 Top Public Performers YTD: Table: Company | Ticker | YTD Return | Mkt Cap | Key Driver | Source | Interesting Insights',
+    '- h3 LTM Monthly Deal Count Mar2025-Feb2026: Table: Month | Deal Count (Est.) | Notable Deal | Interesting Insights',
+    '',
+    '[SECTION:2] INDUSTRY INSIGHTS & MARKET TRENDS (H1 2026)',
+    '- h3 Executive Moves: Table: Name | From | To | Date | Significance | Source | Interesting Insights',
+    '- h3 AI and Technology Shifts: bullets on major AI product launches, zero-trust, quantum threats',
+    '- h3 Macro Market Conditions: bullets on rates, multiples, sentiment',
+    '- h3 Valuation Multiples by ARR Tier: Table: ARR Range | EV/ARR | YoY Change | Comparable Cos | Source | Interesting Insights',
+    '',
+    '[SECTION:3] CONFERENCES & EVENTS 2026',
+    '- Table: Conference | Dates | Location | Hosted By | 1st or 3rd Party | Key Themes | Relevance | Interesting Insights',
+    '- Minimum 8 rows. 1st Party = vendor-hosted. 3rd Party = independent industry event.',
+    '',
+    '[SECTION:4] M&A ACTIVITY — BROADER MARKET',
+    '- h3 Macro Overview: bullets on deal pace vs prior year, buyer motivations, financing conditions',
+    '- h3 Top Sectors Feb-Mar 2026: Table: Sector | Deal Count | Total Value (Est.) | Avg Multiple | Hot Targets | Source | Interesting Insights',
+    '- h3 Recent Financing Transactions: Table: Company | Amount (Est.) | Stage | Sector | Lead Investor | Date | Source | Interesting Insights',
+    '  Minimum 8 rows.',
+    '- h3 Notable Pending and Rumoured Deals: bullets with parties, Est. value, status, source'
+  ].join('\n');
+}
+
+/* ── Render ──────────────────────────────────────── */
+function render(co, sector, rawHtml, today, mode) {
+  $id('progPanel').classList.remove('show');
+
+  var isCompany = mode === 'company';
+  var TITLES    = isCompany ? CO_TITLES : SEC_TITLES;
+  var nSections = TITLES.length;
+  var reportTag = isCompany ? 'Company Intelligence Report' : 'Sector Intelligence Report';
+  var conf      = Math.floor(74 + Math.random() * 18);
+  var sb        = sector ? sector.toUpperCase() : 'CYBERSECURITY';
+
+  _sections = splitSections(rawHtml, nSections);
+
+  var h = '';
+
+  /* header */
+  h += '<div class="rpt-header">';
+  h +=   '<div>';
+  h +=     '<div class="rpt-company">' + esc(co.toUpperCase()) + '</div>';
+  h +=     '<div class="rpt-badges">';
+  h +=       '<span class="rbadge ' + (isCompany ? 'rb-blue' : 'rb-purple') + '">' + esc(reportTag) + '</span>';
+  h +=       '<span class="rbadge rb-green">' + esc(sb) + '</span>';
+  h +=       '<span class="rbadge rb-yellow">2026 YTD</span>';
+  h +=       '<span class="rbadge rb-purple">Confidential</span>';
+  h +=     '</div>';
+  h +=   '</div>';
+  h +=   '<div class="rpt-meta">';
+  h +=     '<div class="meta-lbl">Report Date</div><div class="meta-val">' + esc(today) + '</div>';
+  h +=     '<div class="meta-lbl" style="margin-top:10px">Type</div>';
+  h +=     '<div class="meta-val">' + (isCompany ? 'Company-Specific' : 'Sector-Wide') + '</div>';
+  h +=     '<div class="conf-row">';
+  h +=       '<div class="meta-lbl">Data Confidence</div>';
+  h +=       '<div class="conf-track"><div class="conf-fill" style="width:' + conf + '%"></div></div>';
+  h +=       '<div class="conf-pct">' + conf + '%</div>';
+  h +=     '</div>';
+  h +=   '</div>';
+  h += '</div>';
+
+  /* export bar */
+  h += '<div class="export-bar">';
+  h +=   '<span class="export-lbl">&#9654; Export ' + (isCompany ? 'Company' : 'Sector') + ' Report</span>';
+  h +=   '<div class="export-btns">';
+  h +=     '<button class="exp-btn exp-html" id="expHtml">';
+  h +=       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
+  h +=       'Download HTML';
+  h +=     '</button>';
+  h +=     '<button class="exp-btn exp-txt" id="expTxt">';
+  h +=       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>';
+  h +=       'Download TXT';
+  h +=     '</button>';
+  h +=     '<button class="exp-btn exp-pdf" id="expPdf">';
+  h +=       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 13h6M9 17h4"/></svg>';
+  h +=       'Download PDF';
+  h +=     '</button>';
+  h +=     '<button class="exp-btn exp-docx" id="expDocx">';
+  h +=       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M8 13l2 4 2-4 2 4 2-4"/></svg>';
+  h +=       'Download DOCX';
+  h +=     '</button>';
+  h +=   '</div>';
+  h += '</div>';
+
+  /* sections */
+  for (var i = 0; i < nSections; i++) {
+    var body = _sections[i] && _sections[i].trim()
+      ? _sections[i].trim()
+      : '<p style="color:var(--text3);font-family:var(--mono);font-size:12px">Data not available.</p>';
+    h += '<div class="section" id="sec' + (i + 1) + '">';
+    h +=   '<div class="sec-hdr" data-s="' + (i + 1) + '">';
+    h +=     '<span class="sec-num">0' + (i + 1) + '</span>';
+    h +=     '<span class="sec-title">' + TITLES[i] + '</span>';
+    h +=     '<span class="sec-chev">&#9662;</span>';
+    h +=   '</div>';
+    h +=   '<div class="sec-body"><div class="rc" id="rc' + (i + 1) + '">' + body + '</div></div>';
+    h += '</div>';
+  }
+
+  /* disclaimer */
+  h += '<div class="disclaimer"><strong>Disclaimer:</strong> Generated by CyberIntel M&amp;A Intelligence Platform using Claude Sonnet 4 as of ' + esc(today) + '. For informational purposes only. Not financial, legal, or investment advice. Estimates marked Est. are model-generated — verify before use.</div>';
+
+  var wrap = $id('reportWrap');
+  wrap.innerHTML = h;
+  wrap.classList.add('show');
+
+  wrap.addEventListener('click', function (e) {
+    var hdr = e.target.closest('[data-s]');
+    if (!hdr) return;
+    var sec = $id('sec' + hdr.getAttribute('data-s'));
+    if (sec) sec.classList.toggle('closed');
+  });
+
+  var suffix = isCompany ? '_Company' : '_Sector';
+  $id('expHtml').addEventListener('click',  function () { doExportHtml(co, sector, today, TITLES, suffix); });
+  $id('expTxt').addEventListener('click',   function () { doExportTxt(co, sector, today, TITLES, suffix); });
+  $id('expPdf').addEventListener('click',   function () { doExportPdf(co, suffix); });
+  $id('expDocx').addEventListener('click',  function () { doExportDocx(co, sector, today, TITLES, suffix); });
+
+  $id('genBtnCo').disabled = $id('genBtnSec').disabled = false;
+  wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+/* ── Section splitter ────────────────────────────── */
+function splitSections(html, n) {
+  n = n || 8;
+  var parts = html.split(/\[SECTION:\d+\]/i);
+  if (parts.length > 1) { var s = parts.slice(1, n + 1); while (s.length < n) s.push(''); return s; }
+  var hrs = html.split(/<hr\s*\/?>/i);
+  if (hrs.length >= n) return bucket(hrs, n);
+  var h3s = html.split(/(?=<h3[\s>])/i);
+  if (h3s.length > 1) return bucket(h3s, n);
+  var chunk = Math.ceil(html.length / n);
+  return Array.from({ length: n }, function (_, i) { return html.slice(i * chunk, (i + 1) * chunk); });
+}
+function bucket(parts, n) {
+  var pb = Math.ceil(parts.length / n), bk = [];
+  for (var i = 0; i < n; i++) bk.push('');
+  parts.forEach(function (p, i) { bk[Math.min(Math.floor(i / pb), n - 1)] += p; });
+  return bk;
+}
+
+/* ── HTML Export ─────────────────────────────────── */
+function doExportHtml(co, sector, today, TITLES, suffix) {
+  var styles = Array.from(document.querySelectorAll('style')).map(function (s) { return s.outerHTML; }).join('');
+  var links  = Array.from(document.querySelectorAll('link[rel=stylesheet]')).map(function (l) { return l.outerHTML; }).join('');
+  var secs = '';
+  for (var i = 0; i < TITLES.length; i++) {
+    var el = $id('rc' + (i + 1));
+    secs += '<div class="section"><div class="sec-hdr" style="display:flex;align-items:center;gap:13px;padding:16px 22px;background:#090d18;border-bottom:1px solid #16213a;">'
+          + '<span class="sec-num">0' + (i + 1) + '</span><span class="sec-title">' + TITLES[i] + '</span></div>'
+          + '<div class="sec-body"><div class="rc">' + (el ? el.innerHTML : '') + '</div></div></div>';
+  }
+  var full = '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">' + links + styles + '</head>'
+           + '<body style="background:#05070e;padding:40px 0;"><div style="max-width:1100px;margin:0 auto;padding:0 28px;">'
+           + '<div style="font-family:Bebas Neue,cursive;font-size:52px;letter-spacing:3px;color:#e4eaf5;margin-bottom:6px;">' + co.toUpperCase() + '</div>'
+           + '<div style="font-family:IBM Plex Mono,monospace;font-size:11px;color:#8494b2;margin-bottom:36px;letter-spacing:1px;">M&amp;A INTELLIGENCE REPORT &nbsp;|&nbsp; ' + today + ' &nbsp;|&nbsp; CLAUDE SONNET 4</div>'
+           + secs
+           + '<div class="disclaimer" style="margin-top:44px;"><strong>Disclaimer:</strong> Generated by CyberIntel using Claude Sonnet 4 as of ' + today + '. For informational purposes only. Not financial advice.</div>'
+           + '</div></body></html>';
+  download(full, slug(co) + '_MA_Intelligence' + suffix + '_' + new Date().getFullYear() + '.html', 'text/html');
+}
+
+/* ── PDF Export ──────────────────────────────────── */
+function doExportPdf(co, suffix) {
+  var btn = $id('expPdf');
+  btn.disabled = true;
+  btn.textContent = 'Opening PDF...';
+
+  var TITLES = (_mode === 'company') ? CO_TITLES : SEC_TITLES;
+
+  /* Build section HTML with print-friendly styles */
+  var secs = '';
+  for (var i = 0; i < TITLES.length; i++) {
+    var el = $id('rc' + (i + 1));
+    secs += '<div class="section-block">'
+          + '<div class="section-title-bar">0' + (i+1) + ' &mdash; ' + TITLES[i] + '</div>'
+          + (el ? el.innerHTML : '<p>Data not available.</p>')
+          + '</div>';
+  }
+
+  var printHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8">'
+    + '<title>' + co + ' M&A Intelligence Report</title>'
+    + '<style>'
+    + '*{box-sizing:border-box;margin:0;padding:0;}'
+    + 'body{font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#1a1a1a;background:#fff;padding:0;}'
+    + 'h3{font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#1a5daf;'
+    + '   border-bottom:1.5px solid #c8d8f0;padding-bottom:5px;margin:16px 0 8px;}'
+    + 'ul{margin:0 0 8px 16px;padding:0;}li{font-size:11px;line-height:1.55;color:#222;margin-bottom:2px;}'
+    + 'p{font-size:11px;line-height:1.55;color:#222;margin-bottom:6px;}'
+    + 'strong{font-weight:600;color:#111;}'
+    + 'a.source-tag{font-size:9px;color:#1a7fc1;border:1px solid #c8d8f0;padding:1px 4px;border-radius:2px;text-decoration:none;display:inline-block;}'
+    + 'table{width:100%;border-collapse:collapse;font-size:10px;margin:8px 0 12px;}'
+    + 'th{background:#dce8f8;color:#1a5daf;text-align:left;padding:6px 8px;font-weight:700;border:1px solid #b8cce4;font-size:9px;text-transform:uppercase;letter-spacing:.5px;}'
+    + 'td{padding:6px 8px;border:1px solid #dde6f0;color:#1a1a1a;vertical-align:top;line-height:1.45;}'
+    + 'tr:nth-child(even) td{background:#f5f8fd;}'
+    + '.metric-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:10px 0 14px;}'
+    + '.metric-card{border:1px solid #b8cce4;border-radius:4px;padding:10px;background:#f0f6ff;border-top:3px solid #1a5daf;}'
+    + '.metric-label{font-size:8px;text-transform:uppercase;letter-spacing:1px;color:#6688aa;margin-bottom:4px;}'
+    + '.metric-value{font-size:20px;font-weight:700;color:#1a5daf;line-height:1;}'
+    + '.metric-sub{font-size:8px;color:#6688aa;margin-top:2px;}'
+    + '.callout{border-left:3px solid #1a5daf;padding:8px 12px;background:#eef5ff;margin:8px 0;font-size:11px;color:#1a1a2e;}'
+    + '.callout.green{border-color:#1d9e75;background:#edfaf4;}'
+    + '.callout.red{border-color:#c0392b;background:#fdf0ee;}'
+    + '.callout.yellow{border-color:#d4a017;background:#fffbee;}'
+    + '.section-block{page-break-inside:avoid;margin-bottom:24px;padding-bottom:16px;border-bottom:1px solid #e0e8f4;}'
+    + '.section-title-bar{font-size:14px;font-weight:700;letter-spacing:1px;color:#0d1b3e;'
+    + '  background:#dce8f8;padding:8px 12px;border-left:4px solid #1a5daf;margin-bottom:14px;}'
+    + '.cover{text-align:center;padding:60px 40px;border-bottom:3px solid #1a5daf;margin-bottom:32px;}'
+    + '.cover h1{font-size:36px;font-weight:900;letter-spacing:2px;color:#0d1b3e;margin-bottom:8px;}'
+    + '.cover h2{font-size:13px;color:#1a5daf;font-weight:400;letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;}'
+    + '.cover p{font-size:10px;color:#6688aa;}'
+    + '.disclaimer{margin-top:24px;padding:10px 14px;border:1px solid #c8d8f0;font-size:9px;color:#6688aa;line-height:1.6;}'
+    + '@media print{'
+    + '  @page{size:A4;margin:15mm 15mm 18mm 15mm;}'
+    + '  body{print-color-adjust:exact;-webkit-print-color-adjust:exact;}'
+    + '  .section-block{page-break-inside:avoid;}'
+    + '  .metric-grid{display:grid!important;}'
+    + '}'
+    + '</style></head><body>'
+    + '<div class="cover">'
+    + '<h1>' + co.toUpperCase() + '</h1>'
+    + '<h2>M&amp;A Intelligence Report</h2>'
+    + '<p>' + new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'}) + '&nbsp;&nbsp;|&nbsp;&nbsp;Claude Sonnet 4&nbsp;&nbsp;|&nbsp;&nbsp;CyberIntel Platform</p>'
+    + '</div>'
+    + secs
+    + '<div class="disclaimer"><strong>Disclaimer:</strong> Generated by CyberIntel M&A Intelligence Platform using Claude Sonnet 4. For informational purposes only. Not financial, legal, or investment advice. Estimates marked Est. are model-generated approximations — verify before use.</div>'
+    + '</body></html>';
+
+  var win = window.open('', '_blank', 'width=900,height=700,scrollbars=yes');
+  if (!win) {
+    btn.disabled = false;
+    btn.textContent = 'Download PDF';
+    alert('Popup blocked. Please allow popups for this page and try again.');
+    return;
+  }
+  win.document.open();
+  win.document.write(printHtml);
+  win.document.close();
+  win.onload = function() {
+    setTimeout(function() {
+      win.focus();
+      win.print();
+      btn.disabled = false;
+      btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 13h6M9 17h4"/></svg> Download PDF';
+    }, 600);
+  };
+}
+
+/* ── DOCX Export ─────────────────────────────────── */
+function doExportDocx(co, sector, today, TITLES, suffix) {
+  var btn = $id('expDocx');
+  btn.disabled = true;
+  btn.textContent = 'Loading library...';
+
+  function runDocx() {
+    btn.textContent = 'Building DOCX...';
+    _buildDocx(co, sector, today, TITLES, suffix, btn);
+  }
+
+  if (window.docx && window.docx.Document) {
+    runDocx();
+    return;
+  }
+  /* Load docx.js dynamically */
+  var s = document.createElement('script');
+  s.src = 'https://unpkg.com/docx@8.5.0/build/index.js';
+  s.onload = function() { setTimeout(runDocx, 200); };
+  s.onerror = function() {
+    btn.disabled = false;
+    btn.textContent = 'Download DOCX';
+    alert('Could not load DOCX library. Check your internet connection and try again.');
+  };
+  document.head.appendChild(s);
+}
+
+function _buildDocx(co, sector, today, TITLES, suffix, btn) {
+  btn.disabled = true;
+  btn.textContent = 'Building DOCX...';
+
+  var D = window.docx;
+  var PW = 12240, PH = 15840, MAR = 1080, CW = PW - MAR * 2;
+  var BLUE = '1A5DAF', TEAL = '0099BB', GREY = '8A9AB8', LGREY = 'D8DFF0';
+  var bdr = { style: D.BorderStyle.SINGLE, size: 1, color: LGREY };
+  var borders = { top: bdr, bottom: bdr, left: bdr, right: bdr };
+
+  function t(text, opts) {
+    opts = opts || {};
+    return new D.TextRun({ text: String(text || ''), font: 'Arial', size: opts.size || 20,
+      bold: opts.bold || false, italics: opts.italic || false, color: opts.color || '333333' });
+  }
+  function p(runs, opts) {
+    opts = opts || {};
+    if (!Array.isArray(runs)) runs = [runs];
+    return new D.Paragraph({
+      children: runs,
+      alignment: opts.align || D.AlignmentType.LEFT,
+      spacing: { before: opts.before || 0, after: opts.after !== undefined ? opts.after : 100 },
+      indent: opts.indent ? { left: opts.indent } : undefined,
+      numbering: opts.bullet ? { reference: 'bullets', level: 0 } : undefined,
+      border: opts.borderBottom ? { bottom: { style: D.BorderStyle.SINGLE, size: opts.borderBottom, color: opts.borderColor || LGREY, space: 1 } } : undefined
+    });
+  }
+  function stripHtml(html) {
+    var d = document.createElement('div'); d.innerHTML = html || '';
+    return (d.textContent || d.innerText || '').replace(/\s+/g, ' ').trim();
+  }
+  function cellMake(text, w, isHdr) {
+    return new D.TableCell({
+      borders: borders,
+      width: { size: w, type: D.WidthType.DXA },
+      shading: { fill: isHdr ? 'E4EBF8' : 'FFFFFF', type: D.ShadingType.CLEAR },
+      margins: { top: 60, bottom: 60, left: 100, right: 100 },
+      children: [p([t(text, { bold: isHdr, size: isHdr ? 17 : 18, color: isHdr ? BLUE : '444444' })], { after: 0 })]
+    });
+  }
+  function htmlTableToDocx(el) {
+    try {
+      var rows = Array.from(el.querySelectorAll('tr'));
+      if (!rows.length) return null;
+      var maxCols = 0;
+      rows.forEach(function(r) { maxCols = Math.max(maxCols, r.querySelectorAll('th,td').length); });
+      if (!maxCols) return null;
+      var colW = Math.floor(CW / maxCols);
+      var colWidths = Array.from({ length: maxCols }, function() { return colW; });
+      colWidths[maxCols - 1] += (CW - colW * maxCols);
+      var dRows = rows.map(function(tr) {
+        var isHdr = !!tr.querySelector('th');
+        var cells = Array.from(tr.querySelectorAll('th,td'));
+        var dCells = [];
+        for (var ci = 0; ci < maxCols; ci++) {
+          dCells.push(cellMake(cells[ci] ? stripHtml(cells[ci].innerHTML) : '', colWidths[ci], isHdr));
+        }
+        return new D.TableRow({ children: dCells, tableHeader: isHdr });
+      });
+      return new D.Table({ width: { size: CW, type: D.WidthType.DXA }, columnWidths: colWidths, rows: dRows });
+    } catch(e) { return null; }
+  }
+  function nodeToDocx(node) {
+    var out = [];
+    Array.from(node.childNodes).forEach(function(n) {
+      if (n.nodeType === 3) { var tx = n.textContent.trim(); if (tx) out.push(p([t(tx)])); return; }
+      if (n.nodeType !== 1) return;
+      var tag = n.tagName.toLowerCase(), cls = n.className || '';
+      if (tag === 'h3') {
+        out.push(p([t(stripHtml(n.innerHTML).toUpperCase(), { bold: true, size: 19, color: BLUE })], { before: 220, after: 80, borderBottom: 4, borderColor: LGREY }));
+      } else if (tag === 'p') {
+        var runs = [t(stripHtml(n.innerHTML))];
+        if (runs[0].text) out.push(p(runs, { after: 80 }));
+      } else if (tag === 'li') {
+        out.push(p([t(stripHtml(n.innerHTML))], { bullet: true, after: 50 }));
+      } else if (tag === 'table') {
+        var tbl = htmlTableToDocx(n);
+        if (tbl) { out.push(tbl); out.push(p([], { after: 120 })); }
+      } else if (cls.indexOf('metric-card') > -1) {
+        var lbl = n.querySelector('.metric-label'), val = n.querySelector('.metric-value'), sub = n.querySelector('.metric-sub');
+        out.push(p([
+          t((lbl ? lbl.textContent.trim() + ': ' : ''), { size: 16, color: GREY }),
+          t(val ? val.textContent.trim() : '—', { bold: true, size: 24, color: BLUE }),
+          t(sub ? ' (' + sub.textContent.trim() + ')' : '', { size: 15, color: GREY })
+        ], { after: 60 }));
+      } else if (cls.indexOf('callout') > -1) {
+        out.push(p([t('| ' + stripHtml(n.innerHTML), { italic: true, color: '445577' })], { before: 80, after: 80, indent: 300 }));
+      } else {
+        nodeToDocx(n).forEach(function(x) { out.push(x); });
+      }
+    });
+    return out;
+  }
+
+  /* Build document content */
+  var children = [];
+
+  /* Cover */
+  children.push(p([t('M&A INTELLIGENCE REPORT', { bold: true, size: 32, color: BLUE })], { align: D.AlignmentType.CENTER, after: 120 }));
+  children.push(p([t(co.toUpperCase(), { bold: true, size: 64, color: '0D1B3E' })], { align: D.AlignmentType.CENTER, after: 100 }));
+  if (sector) children.push(p([t(sector.toUpperCase(), { size: 22, color: TEAL })], { align: D.AlignmentType.CENTER, after: 80 }));
+  children.push(p([t('Generated: ' + today + '   |   Analyst Engine: Claude Sonnet 4', { size: 17, color: GREY })], { align: D.AlignmentType.CENTER, after: 40 }));
+  children.push(p([t(suffix === '_Company' ? 'COMPANY INTELLIGENCE REPORT' : 'SECTOR INTELLIGENCE REPORT', { size: 17, color: GREY })], { align: D.AlignmentType.CENTER, after: 400 }));
+  children.push(p([], { before: 0, after: 0, borderBottom: 10, borderColor: BLUE }));
+
+  /* Sections */
+  TITLES.forEach(function(title, idx) {
+    children.push(new D.Paragraph({ children: [new D.PageBreak()] }));
+    children.push(p([
+      t('0' + (idx + 1) + '  ', { size: 18, color: GREY, bold: true }),
+      t(title.toUpperCase(), { bold: true, size: 28, color: BLUE })
+    ], { before: 0, after: 160, borderBottom: 8, borderColor: BLUE }));
+    var el = document.getElementById('rc' + (idx + 1));
+    if (el) {
+      nodeToDocx(el).forEach(function(x) { children.push(x); });
+    } else {
+      children.push(p([t('Data not available.', { italic: true, color: GREY })]));
+    }
+  });
+
+  /* Disclaimer */
+  children.push(new D.Paragraph({ children: [new D.PageBreak()] }));
+  children.push(p([t('DISCLAIMER', { bold: true, size: 20, color: BLUE })], { after: 100 }));
+  children.push(p([t('Generated by CyberIntel M&A Intelligence Platform using Claude Sonnet 4 as of ' + today + '. For informational purposes only. Not financial, legal, or investment advice. Estimates marked Est. are model-generated approximations — verify before use.', { size: 17, color: '666666' })]));
+
+  var doc = new D.Document({
+    numbering: { config: [{ reference: 'bullets', levels: [{ level: 0, format: D.LevelFormat.BULLET, text: '\u2022', alignment: D.AlignmentType.LEFT, style: { paragraph: { indent: { left: 480, hanging: 240 } } } }] }] },
+    styles: { default: { document: { run: { font: 'Arial', size: 20 } } } },
+    sections: [{
+      properties: { page: { size: { width: PW, height: PH }, margin: { top: MAR, right: MAR, bottom: MAR, left: MAR } } },
+      headers: { default: new D.Header({ children: [p([
+        t('CyberIntel M&A Intelligence  |  ' + co.toUpperCase(), { size: 15, color: GREY }),
+        t('\t' + today, { size: 15, color: GREY })
+      ], { after: 0, borderBottom: 2, borderColor: LGREY })] }) },
+      footers: { default: new D.Footer({ children: [p([
+        t('CONFIDENTIAL — For informational purposes only', { size: 15, color: GREY }),
+        t('\tPage ', { size: 15, color: GREY }),
+        new D.TextRun({ children: [D.PageNumber.CURRENT], size: 15, font: 'Arial', color: GREY })
+      ], { before: 0, after: 0 })] }) },
+      children: children
+    }]
+  });
+
+  D.Packer.toBlob(doc).then(function(blob) {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = slug(co) + '_MA_Intelligence' + suffix + '_' + new Date().getFullYear() + '.docx';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function() { URL.revokeObjectURL(url); }, 2000);
+    btn.disabled = false;
+    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M8 13l2 4 2-4 2 4 2-4"/></svg> Download DOCX';
+  }).catch(function(err) {
+    btn.disabled = false; btn.textContent = 'Download DOCX';
+    alert('DOCX export failed: ' + err.message);
+  });
+} /* end _buildDocx */
+
+/* ── TXT Export ──────────────────────────────────── */
+function doExportTxt(co, sector, today, TITLES, suffix) {
+  var HR = '='.repeat(70), hr = '-'.repeat(70);
+  var lines = [HR, '  M&A INTELLIGENCE REPORT — ' + (suffix === '_Company' ? 'COMPANY' : 'SECTOR'),
+               '  ' + co.toUpperCase() + (sector ? ' | ' + sector.toUpperCase() : ''),
+               '  Generated: ' + today + ' | Analyst Engine: Claude Sonnet 4', HR];
+  for (var i = 0; i < TITLES.length; i++) {
+    lines.push('', hr, '  SECTION ' + (i + 1) + ': ' + TITLES[i].toUpperCase(), hr);
+    var el = $id('rc' + (i + 1));
+    lines.push(el ? nodeToText(el) : '  Data not available.');
+  }
+  lines.push('', HR, '  DISCLAIMER', HR,
+    '  Generated by CyberIntel M&A Intelligence Platform using Claude Sonnet 4.',
+    '  For informational purposes only. Estimates marked Est. are model-generated approximations.',
+    '  Verify all metrics with primary sources before making strategic decisions.');
+  download(lines.join('\n'), slug(co) + '_MA_Intelligence' + suffix + '_' + new Date().getFullYear() + '.txt', 'text/plain');
+}
+
+function nodeToText(node) {
+  var out = [];
+  Array.from(node.childNodes).forEach(function (n) {
+    if (n.nodeType === 3) { var t = n.textContent.trim(); if (t) out.push('  ' + t); return; }
+    if (n.nodeType !== 1) return;
+    var tag = n.tagName.toLowerCase(), cls = n.className || '';
+    if (tag === 'h3')    { out.push('', '  > ' + n.textContent.trim().toUpperCase(), ''); }
+    else if (tag === 'p')  { var t = n.textContent.trim(); if (t) out.push('  ' + t); }
+    else if (tag === 'li') { out.push('    • ' + n.textContent.trim()); }
+    else if (tag === 'table') {
+      out.push('');
+      Array.from(n.querySelectorAll('tr')).forEach(function (r) {
+        var cells = Array.from(r.querySelectorAll('th,td')).map(function (c) { return c.textContent.trim().substring(0, 20).padEnd(20); });
+        out.push('  ' + cells.join(' | '));
+      });
+      out.push('');
+    }
+    else if (cls.indexOf('metric-card') > -1) {
+      var l = n.querySelector('.metric-label'), v = n.querySelector('.metric-value'), s = n.querySelector('.metric-sub');
+      out.push('  [' + (l ? l.textContent.trim() : '') + '] ' + (v ? v.textContent.trim() : '') + (s ? ' (' + s.textContent.trim() + ')' : ''));
+    }
+    else { out.push(nodeToText(n)); }
+  });
+  return out.join('\n');
+}
+
+/* ── Utilities ───────────────────────────────────── */
+function download(content, filename, mime) {
+  var blob = new Blob([content], { type: mime + ';charset=utf-8' });
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function () { URL.revokeObjectURL(url); }, 3000);
+}
+function slug(s) { return s.replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_|_$/g, ''); }
+
+}());
+</script>
+</body>
+</html>
