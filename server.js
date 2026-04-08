@@ -22,7 +22,7 @@ const PORT          = process.env.PORT || 3000;
 
 /* Max research context to inject into prompt (chars).
    Keep under ~40K chars (~10K tokens) to leave room for prompt + output */
-const MAX_CONTEXT_CHARS = 40000;
+const MAX_CONTEXT_CHARS = 25000;
 
 /* ─── Tavily ──────────────────────────────────────────── */
 
@@ -245,7 +245,7 @@ const server = http.createServer(async (req, res) => {
         'anthropic-version': '2023-06-01',
         'Content-Length':    Buffer.byteLength(body)
       },
-      timeout: 300000 /* 5 min */
+      timeout: 600000 /* 10 min */
     };
 
     const proxy = https.request(opts, (upstream) => {
@@ -269,10 +269,10 @@ const server = http.createServer(async (req, res) => {
     });
 
     proxy.on('timeout', () => {
-      console.error('[Claude] TIMEOUT after 5min');
+      console.error('[Claude] TIMEOUT after 10min');
       proxy.destroy();
       res.writeHead(504, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-      res.end(JSON.stringify({ error: { message: 'Anthropic API request timed out (5 min)' } }));
+      res.end(JSON.stringify({ error: { message: 'Anthropic API timed out (10 min). Try a shorter prompt or smaller company.' } }));
     });
 
     proxy.write(body);
