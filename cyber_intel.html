@@ -632,7 +632,10 @@ function onGenerate(mode) {
       mode: mode
     })
   })
-  .then(function (res) { return res.json(); })
+  .then(function (res) {
+    if (!res.ok) throw new Error('Research API returned HTTP ' + res.status);
+    return res.json();
+  })
   .then(function (research) {
     /* Mark search steps done */
     for (var i = 0; i < 6; i++) setStep(i, 'done');
@@ -668,7 +671,12 @@ function onGenerate(mode) {
   })
   .then(function (res) {
     clearTimeout(timeoutId);
-    if (!res.ok) return res.json().then(function (b) { throw new Error((b.error && b.error.message) || 'HTTP ' + res.status); });
+    if (!res.ok) {
+      return res.text().then(function (txt) {
+        try { var b = JSON.parse(txt); throw new Error((b.error && (b.error.message || b.error)) || 'HTTP ' + res.status); }
+        catch(e) { if (e.message.indexOf('HTTP') === 0 || e.message.indexOf('Error') >= 0) throw e; throw new Error('HTTP ' + res.status + ': ' + txt.slice(0, 200)); }
+      });
+    }
     return res.json();
   })
   .then(function (data) {
