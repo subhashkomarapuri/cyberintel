@@ -245,15 +245,54 @@ body::before{
 .rc ul li::before{content:'▸';position:absolute;left:0;top:7px;color:var(--accent);font-size:10px;}
 .rc strong{color:var(--text);font-weight:600;}
 
-/* Source tags */
+/* Source tags — verified data with clickable link */
 .source-tag{
   display:inline-flex;align-items:center;gap:3px;
-  font-family:var(--mono);font-size:9px;color:var(--text3);
-  border:1px solid var(--border);border-radius:2px;
+  font-family:var(--mono);font-size:9px;color:var(--green);
+  border:1px solid rgba(0,217,122,.4);border-radius:2px;
   padding:1px 6px;margin-left:3px;text-decoration:none;
-  transition:color .15s,border-color .15s;vertical-align:middle;
+  background:rgba(0,217,122,.06);
+  transition:color .15s,border-color .15s,background .15s;vertical-align:middle;
 }
-.source-tag:hover{color:var(--accent);border-color:var(--accent);}
+.source-tag:hover{color:#fff;border-color:var(--green);background:rgba(0,217,122,.18);}
+.source-tag::before{content:'✓ ';font-size:8px;}
+
+/* Estimate tags — hover shows reasoning basis */
+.est-tag{
+  display:inline-flex;align-items:center;gap:3px;position:relative;
+  font-family:var(--mono);font-size:9px;color:var(--yellow);
+  border:1px solid rgba(245,196,0,.3);border-radius:2px;
+  padding:1px 6px;margin-left:3px;cursor:help;
+  background:rgba(245,196,0,.06);vertical-align:middle;
+}
+.est-tag::before{content:'⚠ ';}
+
+/* Tooltip popup on hover for estimate tags */
+.est-tag .est-tip{
+  display:none;position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);
+  background:#0f1a2e;border:1px solid var(--border2);border-radius:4px;
+  padding:8px 11px;width:260px;z-index:100;
+  font-family:var(--mono);font-size:10px;line-height:1.55;color:var(--text2);
+  box-shadow:0 4px 16px rgba(0,0,0,.5);pointer-events:none;
+}
+.est-tag .est-tip::after{
+  content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);
+  border:5px solid transparent;border-top-color:#0f1a2e;
+}
+.est-tag:hover .est-tip{display:block;}
+
+/* Research stats bar */
+.research-bar{
+  display:flex;align-items:center;gap:14px;
+  background:var(--panel);border:1px solid var(--border);
+  border-radius:4px;padding:10px 18px;margin-bottom:12px;
+  font-family:var(--mono);font-size:10px;color:var(--text3);
+}
+.research-bar .rb-stat{display:flex;align-items:center;gap:5px;}
+.rb-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+.rb-dot.green{background:var(--green);}
+.rb-dot.yellow{background:var(--yellow);}
+.rb-dot.red{background:var(--red);}
 
 /* Metric grid */
 .metric-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:10px;margin:14px 0;}
@@ -509,8 +548,9 @@ function esc(s) {
 }
 
 /* ── Generate ────────────────────────────────────── */
-var _mode       = 'company'; // 'company' | 'sector'
-var _urlContext = { url:'', domain:'', name:'', tld:'', pathHint:'' };
+var _mode          = 'company'; // 'company' | 'sector'
+var _urlContext    = { url:'', domain:'', name:'', tld:'', pathHint:'' };
+var _researchStats = {};
 
 function onGenerate(mode) {
   _mode = mode;
@@ -599,7 +639,13 @@ function onGenerate(mode) {
     setStep(6, 'running');
     setFill(70);
 
+    /* Store research stats for display in report header */
+    _researchStats = research.stats || {};
     var webContext = research.context || '';
+
+    console.log('[CyberIntel] Research stats:', _researchStats);
+    console.log('[CyberIntel] Research context length:', webContext.length, 'chars');
+
     var prompt = mode === 'company'
       ? buildCompanyPrompt(company, sNote, _date, webContext)
       : buildSectorPrompt(company, sNote, _date, webContext);
@@ -674,32 +720,32 @@ function buildCompanyPrompt(co, sNote, today, webContext) {
     '- THOROUGHNESS: Be exhaustive. Minimum 6 bullets per subsection. Every table needs minimum 5 rows.',
     '- Output exactly 5 HTML sections, each starting with [SECTION:N] (N=1 to 5).',
     '- Bullets only. NO prose paragraphs. Use <ul><li> for all insights.',
-    '- Every fact must have a source: <a class="source-tag" href="URL" target="_blank">SOURCE</a>',
-    '- NEVER leave any field blank. When exact data is unavailable, use calibrated estimates with these rules:',
-    '  ESTIMATION RULES — follow these benchmarks precisely:',
+    '',
+    'SOURCE CITATION RULES (MANDATORY):',
+    '- For EVERY fact from the research data: use <a class="source-tag" href="ACTUAL_URL_FROM_RESEARCH" target="_blank">Source Name</a>',
+    '  Example: CrowdStrike reported $3.06B revenue <a class="source-tag" href="https://ir.crowdstrike.com/..." target="_blank">CrowdStrike IR</a>',
+    '- For EVERY estimate or training-knowledge fact: use <span class="est-tag">Est.<span class="est-tip">Basis: Series C benchmark — typical valuation $300M–$800M at this stage</span></span>',
+    '  The est-tip MUST explain the reasoning: what benchmark, what comparable, what method.',
+    '- For peer financial data from FMP: use <a class="source-tag" href="https://financialmodelingprep.com" target="_blank">FMP</a>',
+    '- In table Source columns: put the actual clickable link, NOT the text "Training knowledge"',
+    '- NEVER write just "Training knowledge" or "Est. based on market patterns" without a source-tag or est-tag wrapper',
+    '',
+    'ESTIMATION RULES (only when research data has no coverage):',
     '  VALUATION: Seed=$2M-$15M | SeriesA=$15M-$80M | SeriesB=$80M-$300M | SeriesC=$300M-$800M | SeriesD+=$800M-$3B | Growth/Late=$1B-$10B',
-    '  REVENUE MULTIPLES: High-growth SaaS(>50% YoY)=15-25x ARR | Mid-growth(25-50%)=8-15x | Slow-growth(<25%)=4-8x | Declining=2-4x',
-    '  GROSS MARGIN: SaaS platform=70-85% | Security software=65-80% | Services/Training=35-55% | Hardware+software=50-65%',
-    '  HEADCOUNT vs FUNDING: Seed=5-25 employees | SeriesA=25-80 | SeriesB=80-200 | SeriesC=200-600 | SeriesD+=600-2000',
-    '  ARR per EMPLOYEE: Early stage=$80K-$120K | Growth stage=$120K-$180K | Mature=$180K-$300K',
+    '  REVENUE MULTIPLES: High-growth SaaS(>50% YoY)=15-25x ARR | Mid-growth(25-50%)=8-15x | Slow-growth(<25%)=4-8x',
+    '  GROSS MARGIN: SaaS=70-85% | Security software=65-80% | Services=35-55%',
+    '  HEADCOUNT vs FUNDING: Seed=5-25 | SeriesA=25-80 | SeriesB=80-200 | SeriesC=200-600 | SeriesD+=600-2000',
     '  BURN RATE: Seed=$200K-$600K/mo | SeriesA=$500K-$1.5M/mo | SeriesB=$1.5M-$4M/mo | SeriesC=$4M-$10M/mo',
-    '  RUNWAY: Healthy=18-24mo after raise | Warning=12-18mo | Danger=<12mo',
-    '  DEAL SIZE (M&A): Acqui-hire=$5M-$30M | Product bolt-on=$20M-$150M | Strategic=$100M-$1B | Transformative=$1B+',
-    '  EV/NTM REVENUE peers: CRWD=16-20x | PANW=10-13x | S=6-9x | ZS=11-14x | FTNT=8-11x | OKTA=7-10x | NET=14-18x',
-    '  NRR benchmarks: Best-in-class=>130% | Good=110-130% | Average=100-110% | Concerning=<100%',
-    '  YoY GROWTH: Hypergrowth=>80% | Fast=40-80% | Healthy=20-40% | Slow=5-20% | Stalling=<5%',
-    '  ALWAYS provide a range not a single number for estimates. Format: Est. $X–$Y',
-    '  ALWAYS state the basis: (based on [SeriesB stage / peer multiples / headcount proxy])',
-    '  NEVER fabricate specific named investors, customers, or deal terms not in public record',
-    '  NEVER invent press releases, product names, or executive quotes',
-    '  If truly unknown, write: Est. $X–$Y (range based on [method]) — do not narrow it artificially',
-    '- Allowed HTML: <h3> <ul><li> <strong> <table class="data-table"><thead><tr><th><tbody><tr><td>',
+    '  DEAL SIZE: Acqui-hire=$5M-$30M | Bolt-on=$20M-$150M | Strategic=$100M-$1B | Transformative=$1B+',
+    '  Always use ranges, always state basis in est-tip.',
+    '  NEVER fabricate named investors, customers, or deal terms not in public record.',
+    '',
+    '- Allowed HTML: <h3> <ul><li> <strong> <a class="source-tag"> <span class="est-tag"><span class="est-tip">',
+    '  <table class="data-table"><thead><tr><th><tbody><tr><td>',
     '  <div class="metric-grid"><div class="metric-card blue|green|red|yellow">',
     '  <div class="metric-label"><div class="metric-value"><div class="metric-sub">',
     '  <div class="callout accent|green|red|yellow">',
     '- INTERESTING INSIGHTS COLUMN: Every table must end with an "Interesting Insights" column.',
-    '  Keep each cell brief (1-2 sentences max). Focus on what a competitor or acquirer must know:',
-    '  signals, red flags, strategic implications, unusual moves, anomalies.',
     '',
     '[SECTION:1] ABOUT THE COMPANY',
     '- Metric cards (4): Founded Year | Total Employees (Est.) | Total Raised | Valuation (Est.)',
@@ -760,21 +806,26 @@ function buildSectorPrompt(co, sNote, today, webContext) {
     '- THOROUGHNESS: Be exhaustive. Minimum 6 bullets per subsection. Every table needs minimum 5 rows.',
     '- Output exactly 4 HTML sections, each starting with [SECTION:N] (N=1 to 4).',
     '- Bullets only. NO prose paragraphs. Use <ul><li> for all insights.',
-    '- Every fact must have a source: <a class="source-tag" href="URL" target="_blank">SOURCE</a>',
-    '- NEVER leave any field blank. When exact data unavailable, use calibrated estimates:',
+    '',
+    'SOURCE CITATION RULES (MANDATORY):',
+    '- For EVERY fact from the research data: use <a class="source-tag" href="ACTUAL_URL_FROM_RESEARCH" target="_blank">Source Name</a>',
+    '- For EVERY estimate: use <span class="est-tag">Est.<span class="est-tip">Basis: explanation of method used</span></span>',
+    '- For peer financial data from FMP: use <a class="source-tag" href="https://financialmodelingprep.com" target="_blank">FMP</a>',
+    '- In table Source columns: put actual clickable links, NOT plain text like "Training knowledge"',
+    '',
+    'ESTIMATION RULES (only when research data has no coverage):',
     '  SECTOR DEAL VOLUME: Cybersecurity ~300-400 deals/year | ~25-35/month | YTD 2026 ~$18-22B total',
-    '  PE vs STRATEGIC: 35-40% PE | 60-65% strategic in cybersecurity historically',
+    '  PE vs STRATEGIC: 35-40% PE | 60-65% strategic',
     '  DEAL SIZE: Sub-$50M=bolt-on | $50-$200M=mid-market | $200M-$1B=large | $1B+=mega',
     '  EV/ARR by stage: <$5M ARR=8-15x | $5-$20M=10-18x | $20-$50M=12-20x | $50-$100M=10-16x | $100M+=8-14x',
-    '  CONFERENCE ATTENDANCE: Tier1(RSA/BlackHat)=20K-40K | Tier2=5K-15K | Tier3=500-3K',
-    '  ALWAYS use ranges not single numbers. Format: Est. $X–$Y (basis stated)',
-    '  NEVER fabricate company names, deal terms, or acquirer identities not in public record',
-    '- Allowed HTML: <h3> <ul><li> <strong> <table class="data-table"><thead><tr><th><tbody><tr><td>',
+    '  Always use ranges. Always explain basis in est-tip tooltip.',
+    '  NEVER fabricate company names, deal terms, or acquirer identities not in public record.',
+    '',
+    '- Allowed HTML: <h3> <ul><li> <strong> <a class="source-tag"> <span class="est-tag"><span class="est-tip">',
+    '  <table class="data-table"><thead><tr><th><tbody><tr><td>',
     '  <div class="metric-grid"><div class="metric-card blue|green|red|yellow">',
     '  <div class="metric-label"><div class="metric-value"><div class="metric-sub">',
     '- INTERESTING INSIGHTS COLUMN: Every table must end with an "Interesting Insights" column.',
-    '  Keep each cell brief (1-2 sentences max). Focus on what a competitor or acquirer must know:',
-    '  signals, red flags, strategic implications, unusual moves, anomalies.',
     '',
     '[SECTION:1] SECTOR OVERVIEW & 2026 ACTIVITY DASHBOARD',
     '- Metric cards (4): YTD Deal Count | YTD M&A Volume ($B Est.) | Avg Deal Size (Est.) | PE vs Strategic %',
@@ -861,6 +912,16 @@ function render(co, sector, rawHtml, today, mode) {
   h +=       'Download DOCX';
   h +=     '</button>';
   h +=   '</div>';
+  h += '</div>';
+
+  /* research stats bar */
+  var tavOk = (_researchStats.tavilyChars || 0) > 100;
+  var fmpOk = (_researchStats.fmpChars || 0) > 100;
+  h += '<div class="research-bar">';
+  h +=   '<span style="color:var(--accent);letter-spacing:2px;">DATA SOURCES:</span>';
+  h +=   '<span class="rb-stat"><span class="rb-dot ' + (tavOk ? 'green' : 'red') + '"></span>Tavily Web Search — ' + (tavOk ? Math.round(_researchStats.tavilyChars / 1000) + 'K chars scraped' : 'no data') + '</span>';
+  h +=   '<span class="rb-stat"><span class="rb-dot ' + (fmpOk ? 'green' : 'red') + '"></span>FMP Peer Data — ' + (fmpOk ? 'live market data loaded' : 'no data') + '</span>';
+  h +=   '<span class="rb-stat"><span class="rb-dot yellow"></span>Claude Training — supplemental</span>';
   h += '</div>';
 
   /* sections */
