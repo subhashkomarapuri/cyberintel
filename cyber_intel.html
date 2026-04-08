@@ -269,17 +269,12 @@ body::before{
 
 /* Tooltip popup on hover for estimate tags */
 .est-tag .est-tip{
-  display:none;position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);
+  display:none;position:fixed;z-index:9999;
   background:#0f1a2e;border:1px solid var(--border2);border-radius:4px;
-  padding:8px 11px;width:260px;z-index:100;
+  padding:8px 11px;max-width:280px;width:max-content;
   font-family:var(--mono);font-size:10px;line-height:1.55;color:var(--text2);
-  box-shadow:0 4px 16px rgba(0,0,0,.5);pointer-events:none;
+  box-shadow:0 4px 20px rgba(0,0,0,.6);pointer-events:none;
 }
-.est-tag .est-tip::after{
-  content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);
-  border:5px solid transparent;border-top-color:#0f1a2e;
-}
-.est-tag:hover .est-tip{display:block;}
 
 /* Research stats bar */
 .research-bar{
@@ -507,6 +502,24 @@ document.addEventListener('DOMContentLoaded', function () {
   var bSec = document.getElementById('genBtnSec');
   if (bCo)  bCo.addEventListener('click',  function () { onGenerate('company'); });
   if (bSec) bSec.addEventListener('click', function () { onGenerate('sector');  });
+
+  /* Tooltip positioning for est-tag (uses fixed positioning to avoid overflow clipping) */
+  document.addEventListener('mouseover', function (e) {
+    var tag = e.target.closest('.est-tag');
+    if (!tag) return;
+    var tip = tag.querySelector('.est-tip');
+    if (!tip) return;
+    var r = tag.getBoundingClientRect();
+    tip.style.display = 'block';
+    tip.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 290)) + 'px';
+    tip.style.top  = (r.bottom + 6) + 'px';
+  });
+  document.addEventListener('mouseout', function (e) {
+    var tag = e.target.closest('.est-tag');
+    if (!tag) return;
+    var tip = tag.querySelector('.est-tip');
+    if (tip) tip.style.display = 'none';
+  });
 
   ['companyInp','sectorInp'].forEach(function (id) {
     var el = document.getElementById(id);

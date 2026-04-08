@@ -28,17 +28,18 @@ const MAX_CONTEXT_CHARS = 25000;
 
 async function tavilySearch(query, maxResults) {
   const payload = {
-    api_key:             TAVILY_KEY,
     query:               query,
     search_depth:        'basic',
     max_results:         maxResults || 5,
-    include_raw_content: false,
     include_answer:      true
   };
   console.log(`  [Tavily] "${query.slice(0, 70)}…"`);
   const res = await fetch('https://api.tavily.com/search', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type':  'application/json',
+      'Authorization': 'Bearer ' + TAVILY_KEY
+    },
     body: JSON.stringify(payload)
   });
   if (!res.ok) {
