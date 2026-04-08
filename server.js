@@ -24,32 +24,91 @@ const PORT          = process.env.PORT || 3000;
    Keep under ~40K chars (~10K tokens) to leave room for prompt + output */
 const MAX_CONTEXT_CHARS = 25000;
 
+/* ─── Portable HTTPS fetch (works reliably on Railway/Node 18) ─── */
+
+function httpsPost(url, headers, body) {
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(url);
+    const opts = {
+      hostname: parsed.hostname,
+      port: parsed.port || 443,
+      path: parsed.pathname + parsed.search,
+      method: 'POST',
+      headers: {
+        ...headers,
+        'Content-Length': Buffer.byteLength(body)
+      },
+      timeout: 30000
+    };
+    const req = https.request(opts, (res) => {
+      const chunks = [];
+      res.on('data', c => chunks.push(c));
+      res.on('end', () => {
+        const raw = Buffer.concat(chunks).toString();
+        resolve({ status: res.statusCode, headers: res.headers, body: raw });
+      });
+    });
+    req.on('error', reject);
+    req.on('timeout', () => { req.destroy(); reject(new Error('Request timed out (30s)')); });
+    req.write(body);
+    req.end();
+  });
+}
+
+function httpsGet(url) {
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(url);
+    const opts = {
+      hostname: parsed.hostname,
+      port: parsed.port || 443,
+      path: parsed.pathname + parsed.search,
+      method: 'GET',
+      timeout: 15000
+    };
+    const req = https.request(opts, (res) => {
+      const chunks = [];
+      res.on('data', c => chunks.push(c));
+      res.on('end', () => {
+        const raw = Buffer.concat(chunks).toString();
+        resolve({ status: res.statusCode, headers: res.headers, body: raw });
+      });
+    });
+    req.on('error', reject);
+    req.on('timeout', () => { req.destroy(); reject(new Error('Request timed out (15s)')); });
+    req.end();
+  });
+}
+
 /* ─── Tavily ──────────────────────────────────────────── */
 
 async function tavilySearch(query, maxResults) {
   const payload = {
-    query:               query,
-    search_depth:        'basic',
-    max_results:         maxResults || 5,
-    include_answer:      true
+    query:          query,
+    search_depth:   'basic',
+    max_results:    maxResults || 5,
+    include_answer: true
   };
-  console.log(`  [Tavily] "${query.slice(0, 70)}…"`);
-  const res = await fetch('https://api.tavily.com/search', {
-    method: 'POST',
-    headers: {
+  const shortQuery = query.length > 70 ? query.slice(0, 70) + '…' : query;
+  console.log(`  [Tavily] "${shortQuery}"`);
+
+  try {
+    const res = await httpsPost('https://api.tavily.com/search', {
       'Content-Type':  'application/json',
       'Authorization': 'Bearer ' + TAVILY_KEY
-    },
-    body: JSON.stringify(payload)
-  });
-  if (!res.ok) {
-    const t = await res.text().catch(() => '');
-    console.error(`  [Tavily] HTTP ${res.status}: ${t.slice(0, 150)}`);
+    }, JSON.stringify(payload));
+
+    if (res.status !== 200) {
+      console.error(`  [Tavily] HTTP ${res.status}: ${res.body.slice(0, 300)}`);
+      return null;
+    }
+
+    const data = JSON.parse(res.body);
+    console.log(`  [Tavily] → ${data.results?.length || 0} results`);
+    return data;
+  } catch (err) {
+    console.error(`  [Tavily] NETWORK ERROR: ${err.message}`);
     return null;
   }
-  const data = await res.json();
-  console.log(`  [Tavily] → ${data.results?.length || 0} results`);
-  return data;
 }
 
 function formatTavily(label, data) {
@@ -95,11 +154,17 @@ async function runTavily(queries) {
     queries.map(q => tavilySearch(q.q, 5))
   );
   let out = '';
+  let successCount = 0;
   results.forEach((r, i) => {
     if (r.status === 'fulfilled' && r.value) {
-      out += formatTavily(queries[i].label, r.value);
+      const text = formatTavily(queries[i].label, r.value);
+      out += text;
+      if (text) successCount++;
+    } else if (r.status === 'rejected') {
+      console.error(`  [Tavily] Query "${queries[i].label}" REJECTED: ${r.reason}`);
     }
   });
+  console.log(`  [Tavily] ${successCount}/${queries.length} queries returned data`);
   return out;
 }
 
@@ -110,9 +175,17 @@ const PEERS = ['CRWD', 'PANW', 'S', 'ZS', 'FTNT', 'OKTA', 'NET'];
 async function fmpGet(ep) {
   const sep = ep.includes('?') ? '&' : '?';
   const url = `https://financialmodelingprep.com/api/v3/${ep}${sep}apikey=${FMP_KEY}`;
-  const res = await fetch(url);
-  if (!res.ok) return null;
-  return res.json();
+  try {
+    const res = await httpsGet(url);
+    if (res.status !== 200) {
+      console.error(`  [FMP] HTTP ${res.status} for ${ep}: ${res.body.slice(0, 200)}`);
+      return null;
+    }
+    return JSON.parse(res.body);
+  } catch (err) {
+    console.error(`  [FMP] ERROR for ${ep}: ${err.message}`);
+    return null;
+  }
 }
 
 async function fetchPeers() {
@@ -152,6 +225,63 @@ async function fetchPeers() {
   });
   console.log(`  [FMP] Loaded ${n}/${PEERS.length} peers`);
   return out;
+}
+
+/* ─── Health Check — tests both APIs ─────────────────── */
+
+async function healthCheck() {
+  const results = {
+    tavily: { configured: !!TAVILY_KEY, keyPrefix: TAVILY_KEY ? TAVILY_KEY.slice(0, 8) + '...' : '(not set)', status: 'untested', detail: '' },
+    fmp:    { configured: !!FMP_KEY,    keyPrefix: FMP_KEY ? FMP_KEY.slice(0, 6) + '...' : '(not set)', status: 'untested', detail: '' },
+    anthropic: { configured: !!ANTHROPIC_KEY, keyPrefix: ANTHROPIC_KEY ? ANTHROPIC_KEY.slice(0, 8) + '...' : '(not set)', status: 'configured' }
+  };
+
+  /* Test Tavily */
+  if (TAVILY_KEY) {
+    try {
+      const payload = JSON.stringify({ query: 'cybersecurity market 2026', search_depth: 'basic', max_results: 1, include_answer: false });
+      const res = await httpsPost('https://api.tavily.com/search', {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + TAVILY_KEY
+      }, payload);
+      if (res.status === 200) {
+        const data = JSON.parse(res.body);
+        results.tavily.status = 'ok';
+        results.tavily.detail = `${data.results?.length || 0} results returned`;
+      } else {
+        results.tavily.status = 'error';
+        results.tavily.detail = `HTTP ${res.status}: ${res.body.slice(0, 300)}`;
+      }
+    } catch (err) {
+      results.tavily.status = 'error';
+      results.tavily.detail = `Network error: ${err.message}`;
+    }
+  }
+
+  /* Test FMP */
+  if (FMP_KEY) {
+    try {
+      const res = await httpsGet(`https://financialmodelingprep.com/api/v3/profile/AAPL?apikey=${FMP_KEY}`);
+      if (res.status === 200) {
+        const data = JSON.parse(res.body);
+        if (Array.isArray(data) && data.length > 0 && data[0].companyName) {
+          results.fmp.status = 'ok';
+          results.fmp.detail = `Got ${data[0].companyName}, price=$${data[0].price}`;
+        } else {
+          results.fmp.status = 'error';
+          results.fmp.detail = `Unexpected response: ${res.body.slice(0, 200)}`;
+        }
+      } else {
+        results.fmp.status = 'error';
+        results.fmp.detail = `HTTP ${res.status}: ${res.body.slice(0, 300)}`;
+      }
+    } catch (err) {
+      results.fmp.status = 'error';
+      results.fmp.detail = `Network error: ${err.message}`;
+    }
+  }
+
+  return results;
 }
 
 /* ─── Research orchestrator ───────────────────────────── */
@@ -205,6 +335,18 @@ const server = http.createServer(async (req, res) => {
     return res.end();
   }
 
+  /* Health check */
+  if (req.method === 'GET' && req.url === '/api/health') {
+    try {
+      const result = await healthCheck();
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+      return res.end(JSON.stringify(result, null, 2));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+      return res.end(JSON.stringify({ error: err.message }));
+    }
+  }
+
   /* Static files */
   if (req.method === 'GET') {
     const fp = path.join(__dirname, req.url === '/' ? 'cyber_intel.html' : req.url);
@@ -231,7 +373,7 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
-  /* Anthropic proxy — uses native https.request (not fetch) for reliability */
+  /* Anthropic proxy — uses native https.request for reliability */
   if (req.method === 'POST' && req.url === '/api/messages') {
     const body = await readBody(req);
     console.log(`[Claude] Prompt size: ${body.length} chars`);
@@ -285,9 +427,22 @@ const server = http.createServer(async (req, res) => {
   res.end();
 });
 
-server.listen(PORT, () => {
+server.listen(PORT, async () => {
   console.log(`\nCyberIntel → http://localhost:${PORT}`);
-  console.log(`  Anthropic: ${ANTHROPIC_KEY ? 'OK' : 'MISSING'}`);
-  console.log(`  Tavily:    ${TAVILY_KEY ? 'OK' : 'MISSING'}`);
-  console.log(`  FMP:       ${FMP_KEY ? 'OK' : 'MISSING'}\n`);
+  console.log(`  Anthropic: ${ANTHROPIC_KEY ? 'OK (' + ANTHROPIC_KEY.slice(0, 8) + '...)' : 'MISSING'}`);
+  console.log(`  Tavily:    ${TAVILY_KEY ? 'OK (' + TAVILY_KEY.slice(0, 8) + '...)' : 'MISSING'}`);
+  console.log(`  FMP:       ${FMP_KEY ? 'OK (' + FMP_KEY.slice(0, 6) + '...)' : 'MISSING'}`);
+
+  /* Startup API validation */
+  console.log('\n  Running startup API checks...');
+  try {
+    const health = await healthCheck();
+    console.log(`  Tavily:  ${health.tavily.status} — ${health.tavily.detail || '(not configured)'}`);
+    console.log(`  FMP:     ${health.fmp.status} — ${health.fmp.detail || '(not configured)'}`);
+    if (health.tavily.status === 'error') console.log(`  ⚠ Tavily key may be invalid or expired. Check TAVILY_API_KEY env var.`);
+    if (health.fmp.status === 'error')    console.log(`  ⚠ FMP key may be invalid or expired. Check FMP_API_KEY env var.`);
+  } catch (err) {
+    console.error('  Health check failed:', err.message);
+  }
+  console.log('');
 });

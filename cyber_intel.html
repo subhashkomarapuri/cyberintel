@@ -431,6 +431,13 @@ body::before{
         </button>
       </div>
     </div>
+    <div style="margin-top:14px;display:flex;align-items:center;gap:12px;">
+      <button class="gen-btn" id="testApisBtn" style="background:linear-gradient(135deg,#333,#555);height:32px;padding:0 16px;font-size:9px;">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        Test API Keys
+      </button>
+      <span id="healthResult" style="font-family:var(--mono);font-size:10px;color:var(--text3);"></span>
+    </div>
   </div>
 
   <!-- ── Error banner ── -->
@@ -502,6 +509,35 @@ document.addEventListener('DOMContentLoaded', function () {
   var bSec = document.getElementById('genBtnSec');
   if (bCo)  bCo.addEventListener('click',  function () { onGenerate('company'); });
   if (bSec) bSec.addEventListener('click', function () { onGenerate('sector');  });
+
+  /* Test API Keys button */
+  var testBtn = document.getElementById('testApisBtn');
+  if (testBtn) testBtn.addEventListener('click', function () {
+    var out = document.getElementById('healthResult');
+    testBtn.disabled = true;
+    out.textContent = 'Testing...';
+    out.style.color = 'var(--accent)';
+    fetch('/api/health')
+      .then(function (r) { return r.json(); })
+      .then(function (h) {
+        var parts = [];
+        var tavSym = h.tavily.status === 'ok' ? '✓' : h.tavily.configured ? '✗' : '—';
+        var fmpSym = h.fmp.status === 'ok' ? '✓' : h.fmp.configured ? '✗' : '—';
+        var antSym = h.anthropic.configured ? '✓' : '✗';
+        parts.push('Tavily: ' + tavSym + (h.tavily.detail ? ' (' + h.tavily.detail + ')' : h.tavily.configured ? '' : ' not configured'));
+        parts.push('FMP: ' + fmpSym + (h.fmp.detail ? ' (' + h.fmp.detail + ')' : h.fmp.configured ? '' : ' not configured'));
+        parts.push('Anthropic: ' + antSym);
+        out.innerHTML = parts.join(' &nbsp;|&nbsp; ');
+        var allOk = h.tavily.status === 'ok' && h.fmp.status === 'ok' && h.anthropic.configured;
+        out.style.color = allOk ? 'var(--green)' : 'var(--yellow)';
+        testBtn.disabled = false;
+      })
+      .catch(function (e) {
+        out.textContent = 'Failed to reach server: ' + e.message;
+        out.style.color = 'var(--red)';
+        testBtn.disabled = false;
+      });
+  });
 
   /* Tooltip positioning for est-tag (uses fixed positioning to avoid overflow clipping) */
   document.addEventListener('mouseover', function (e) {
