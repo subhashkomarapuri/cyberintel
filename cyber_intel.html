@@ -426,14 +426,14 @@ body::before{
 
 /* ── Constants ───────────────────────────────────── */
 var STEPS = [
-  'Querying Crunchbase funding & cap table data...',
-  'Scanning LinkedIn for executive & headcount signals...',
-  'Pulling Google News — recent coverage & events...',
-  'Analysing SEC filings & public market data...',
-  'Aggregating 2026 YTD M&A deal flow...',
-  'Scanning cybersecurity conference calendar...',
-  'Compiling competitive landscape & multiples...',
-  'Synthesising 8-section intelligence report...'
+  'Searching web — company overview & leadership...',
+  'Searching web — funding rounds & valuation history...',
+  'Searching web — M&A deals & partnerships...',
+  'Searching web — revenue, growth & competitive data...',
+  'Searching web — recent news & product launches...',
+  'Searching web — peer benchmarking & multiples...',
+  'Compiling research data...',
+  'Generating intelligence report via Claude...'
 ];
 
 var CO_TITLES = [
@@ -570,34 +570,55 @@ function onGenerate(mode) {
   }).join('');
   setFill(0);
 
-  var si = 0;
-  function tick() {
-    if (si > 0) setStep(si - 1, 'done');
-    if (si < STEPS.length) {
-      setStep(si, 'running');
-      setFill(Math.round((si + 1) / STEPS.length * 82));
-      si++;
-      _timer = setTimeout(tick, 1850);
-    }
-  }
-  tick();
+  /* Step 0: start progress */
+  setStep(0, 'running');
+  setFill(5);
 
   if (_controller) _controller.abort();
   _controller = new AbortController();
   var timeoutId = setTimeout(function () { _controller.abort(); }, 900000);
 
   var sNote = sector ? ' within the ' + sector + ' sector' : ' in the cybersecurity sector';
-  var prompt = mode === 'company' ? buildCompanyPrompt(company, sNote, _date) : buildSectorPrompt(company, sNote, _date);
 
-  fetch('/api/messages', {
+  /* Step 1: Call /api/research — real Tavily web searches */
+  fetch('/api/research', {
     signal: _controller.signal,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 8000,
-      messages: [{ role: 'user', content: prompt }]
+      company: company,
+      domain: _urlContext.domain,
+      sector: sector || 'cybersecurity',
+      mode: mode
     })
+  })
+  .then(function (res) { return res.json(); })
+  .then(function (research) {
+    /* Mark search steps done */
+    for (var i = 0; i < 6; i++) setStep(i, 'done');
+    setStep(6, 'running');
+    setFill(70);
+
+    var webContext = research.context || '';
+    var prompt = mode === 'company'
+      ? buildCompanyPrompt(company, sNote, _date, webContext)
+      : buildSectorPrompt(company, sNote, _date, webContext);
+
+    setStep(6, 'done');
+    setStep(7, 'running');
+    setFill(80);
+
+    /* Step 2: Call Claude with enriched prompt */
+    return fetch('/api/messages', {
+      signal: _controller.signal,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 12000,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
   })
   .then(function (res) {
     clearTimeout(timeoutId);
@@ -605,21 +626,20 @@ function onGenerate(mode) {
     return res.json();
   })
   .then(function (data) {
-    clearTimeout(_timer);
     STEPS.forEach(function (_, i) { setStep(i, 'done'); });
     setFill(100);
     var rawHtml = (data.content || []).filter(function (b) { return b.type === 'text'; }).map(function (b) { return b.text; }).join('\n');
     render(company, sector, rawHtml, _date, mode);
   })
   .catch(function (err) {
-    clearTimeout(timeoutId); clearTimeout(_timer);
+    clearTimeout(timeoutId);
     pp.classList.remove('show');
     btnCo.disabled = btnSec.disabled = false;
     var m = err.message || String(err);
     if (/abort/i.test(m))             showErr('Request timed out. Make sure server.js is running.');
-    else if (/401|403|invalid/i.test(m)) showErr('Invalid API key. Check console.anthropic.com/settings/keys');
+    else if (/401|403|invalid/i.test(m)) showErr('Invalid API key — check Railway environment variables.');
     else if (/429|rate_limit|credit/i.test(m)) showErr('Credit balance too low or rate limit hit. Top up at console.anthropic.com/settings/billing');
-    else if (/Failed to fetch|network/i.test(m)) showErr('Cannot reach proxy server. Run: node server.js');
+    else if (/Failed to fetch|network/i.test(m)) showErr('Cannot reach server. Make sure it is running.');
     else showErr('Error: ' + m);
   });
 }
@@ -627,9 +647,17 @@ function onGenerate(mode) {
 
 
 /* ── Company Prompt (5 sections) ─────────────────── */
-function buildCompanyPrompt(co, sNote, today) {
+function buildCompanyPrompt(co, sNote, today, webContext) {
   return [
     'You are a Senior M&A Intelligence Analyst. Today: ' + today + '.',
+    '',
+    webContext || '(No live web data available — use training knowledge only.)',
+    '',
+    'IMPORTANT: The LIVE WEB RESEARCH DATA above contains real, current information scraped from the web.',
+    'You MUST prioritize this data over your training knowledge. When web data and training data conflict, trust the web data.',
+    'For every claim you make, cite the actual URL from the research data using <a class="source-tag" href="URL" target="_blank">SOURCE NAME</a>.',
+    'If the web data does not cover a topic, you may supplement with training knowledge but mark those as (Est. based on training data).',
+    '',
     'COMPANY IDENTIFICATION:',
     '  Official website: ' + _urlContext.url,
     '  Domain: ' + _urlContext.domain + ' | TLD: ' + _urlContext.tld,
@@ -706,9 +734,17 @@ function buildCompanyPrompt(co, sNote, today) {
 }
 
 /* ── Sector Prompt (4 sections) ──────────────────── */
-function buildSectorPrompt(co, sNote, today) {
+function buildSectorPrompt(co, sNote, today, webContext) {
   return [
     'You are a Senior M&A Intelligence Analyst. Today: ' + today + '.',
+    '',
+    webContext || '(No live web data available — use training knowledge only.)',
+    '',
+    'IMPORTANT: The LIVE WEB RESEARCH DATA above contains real, current information scraped from the web.',
+    'You MUST prioritize this data over your training knowledge. When web data and training data conflict, trust the web data.',
+    'For every claim you make, cite the actual URL from the research data using <a class="source-tag" href="URL" target="_blank">SOURCE NAME</a>.',
+    'If the web data does not cover a topic, you may supplement with training knowledge but mark those as (Est. based on training data).',
+    '',
     'COMPANY IDENTIFICATION:',
     '  Official website: ' + _urlContext.url,
     '  Domain: ' + _urlContext.domain + ' | TLD: ' + _urlContext.tld,
