@@ -35,10 +35,28 @@ if (fs.existsSync(envPath)) {
   console.log('[ENV] Loaded .env file');
 }
 
-const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY || '';
-const TAVILY_KEY    = process.env.TAVILY_API_KEY || '';
-const FMP_KEY       = process.env.FMP_API_KEY || '';
+/* ─── Resolve API keys (try multiple common env var names) ─── */
+function findEnv(...names) {
+  for (const n of names) {
+    if (process.env[n]) return process.env[n];
+  }
+  return '';
+}
+
+const ANTHROPIC_KEY = findEnv('ANTHROPIC_API_KEY', 'ANTHROPIC_KEY', 'CLAUDE_API_KEY');
+const TAVILY_KEY    = findEnv('TAVILY_API_KEY', 'TAVILY_KEY', 'TAVILY');
+const FMP_KEY       = findEnv('FMP_API_KEY', 'FMP_KEY', 'FMP');
 const PORT          = process.env.PORT || 3000;
+
+/* Log every env var that looks API-key-related so mismatches are obvious */
+const keyVars = Object.keys(process.env).filter(k =>
+  /anthropic|claude|tavily|fmp|api.?key/i.test(k)
+);
+if (keyVars.length) {
+  console.log('[ENV] API-related env vars found:', keyVars.join(', '));
+} else {
+  console.log('[ENV] WARNING: No API-related env vars detected at all');
+}
 
 /* Max research context to inject into prompt (chars).
    Keep under ~40K chars (~10K tokens) to leave room for prompt + output */
@@ -251,10 +269,16 @@ async function fetchPeers() {
 /* ─── Health Check — tests both APIs ─────────────────── */
 
 async function healthCheck() {
+  /* Show which env var names the server can see — helps debug Railway config */
+  const detectedVars = Object.keys(process.env).filter(k =>
+    /anthropic|claude|tavily|fmp|api.?key/i.test(k)
+  );
+
   const results = {
-    tavily: { configured: !!TAVILY_KEY, keyPrefix: TAVILY_KEY ? TAVILY_KEY.slice(0, 8) + '...' : '(not set)', status: 'untested', detail: '' },
-    fmp:    { configured: !!FMP_KEY,    keyPrefix: FMP_KEY ? FMP_KEY.slice(0, 6) + '...' : '(not set)', status: 'untested', detail: '' },
-    anthropic: { configured: !!ANTHROPIC_KEY, keyPrefix: ANTHROPIC_KEY ? ANTHROPIC_KEY.slice(0, 8) + '...' : '(not set)', status: 'configured' }
+    tavily:    { configured: !!TAVILY_KEY, keyPrefix: TAVILY_KEY ? TAVILY_KEY.slice(0, 8) + '...' : '(not set)', status: 'untested', detail: '' },
+    fmp:       { configured: !!FMP_KEY,    keyPrefix: FMP_KEY ? FMP_KEY.slice(0, 6) + '...' : '(not set)', status: 'untested', detail: '' },
+    anthropic: { configured: !!ANTHROPIC_KEY, keyPrefix: ANTHROPIC_KEY ? ANTHROPIC_KEY.slice(0, 8) + '...' : '(not set)', status: 'configured' },
+    envVarsDetected: detectedVars
   };
 
   /* Test Tavily */

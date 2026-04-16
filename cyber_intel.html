@@ -524,6 +524,13 @@ document.addEventListener('DOMContentLoaded', function () {
         parts.push('Tavily: ' + tavSym + (h.tavily.detail ? ' (' + h.tavily.detail + ')' : h.tavily.configured ? '' : ' not configured'));
         parts.push('FMP: ' + fmpSym + (h.fmp.detail ? ' (' + h.fmp.detail + ')' : h.fmp.configured ? '' : ' not configured'));
         parts.push('Anthropic: ' + antSym);
+        /* Show detected env var names — crucial for debugging Railway config */
+        var vars = h.envVarsDetected || [];
+        if (vars.length) {
+          parts.push('Env vars found: ' + vars.join(', '));
+        } else {
+          parts.push('Env vars found: NONE');
+        }
         out.innerHTML = parts.join(' &nbsp;|&nbsp; ');
         var allOk = h.tavily.status === 'ok' && h.fmp.status === 'ok' && h.anthropic.configured;
         out.style.color = allOk ? 'var(--green)' : 'var(--yellow)';
