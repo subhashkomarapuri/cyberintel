@@ -526,11 +526,16 @@ document.addEventListener('DOMContentLoaded', function () {
         parts.push('Anthropic: ' + antSym);
         /* Show detected env var names — crucial for debugging Railway config */
         var vars = h.envVarsDetected || [];
+        var all = h.allEnvNames || [];
         if (vars.length) {
-          parts.push('Env vars found: ' + vars.join(', '));
+          parts.push('API vars: ' + vars.join(', '));
         } else {
-          parts.push('Env vars found: NONE');
+          parts.push('API vars: NONE');
         }
+        parts.push('Total env: ' + (h.totalEnvVars || 0));
+        /* Show if Railway-specific vars exist to confirm it's actually Railway */
+        var railwayVars = all.filter(function(n) { return /^RAILWAY/i.test(n); });
+        if (railwayVars.length) parts.push('Railway: yes (' + railwayVars.length + ' vars)');
         out.innerHTML = parts.join(' &nbsp;|&nbsp; ');
         var allOk = h.tavily.status === 'ok' && h.fmp.status === 'ok' && h.anthropic.configured;
         out.style.color = allOk ? 'var(--green)' : 'var(--yellow)';

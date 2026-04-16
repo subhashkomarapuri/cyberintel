@@ -269,8 +269,9 @@ async function fetchPeers() {
 /* ─── Health Check — tests both APIs ─────────────────── */
 
 async function healthCheck() {
-  /* Show which env var names the server can see — helps debug Railway config */
-  const detectedVars = Object.keys(process.env).filter(k =>
+  /* Dump ALL env var names (no values) so we can see what Railway actually injected */
+  const allEnvNames = Object.keys(process.env).sort();
+  const detectedVars = allEnvNames.filter(k =>
     /anthropic|claude|tavily|fmp|api.?key/i.test(k)
   );
 
@@ -278,7 +279,9 @@ async function healthCheck() {
     tavily:    { configured: !!TAVILY_KEY, keyPrefix: TAVILY_KEY ? TAVILY_KEY.slice(0, 8) + '...' : '(not set)', status: 'untested', detail: '' },
     fmp:       { configured: !!FMP_KEY,    keyPrefix: FMP_KEY ? FMP_KEY.slice(0, 6) + '...' : '(not set)', status: 'untested', detail: '' },
     anthropic: { configured: !!ANTHROPIC_KEY, keyPrefix: ANTHROPIC_KEY ? ANTHROPIC_KEY.slice(0, 8) + '...' : '(not set)', status: 'configured' },
-    envVarsDetected: detectedVars
+    envVarsDetected: detectedVars,
+    allEnvNames: allEnvNames,
+    totalEnvVars: allEnvNames.length
   };
 
   /* Test Tavily */
