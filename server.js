@@ -3,10 +3,10 @@
  * Runs Tavily web searches + Financial Modeling Prep peer data
  * to ground M&A intelligence reports in real, credible data.
  *
- * Environment variables:
- *   ANTHROPIC_API_KEY  — required
- *   TAVILY_API_KEY     — required for web research
- *   FMP_API_KEY        — optional, enables real-time public peer comps
+ * Environment variables (set in .env file or Railway dashboard):
+ *   ANTHROPIC_API_KEY  — required (Claude writes the report)
+ *   TAVILY_API_KEY     — required (web search / scraping)
+ *   FMP_API_KEY        — optional (real-time public peer financials)
  *   PORT               — optional, defaults to 3000
  */
 
@@ -14,6 +14,26 @@ const http  = require('http');
 const https = require('https');
 const fs    = require('fs');
 const path  = require('path');
+
+/* ─── Load .env file if present (no npm dependency needed) ─── */
+const envPath = path.join(__dirname, '.env');
+if (fs.existsSync(envPath)) {
+  const lines = fs.readFileSync(envPath, 'utf8').split('\n');
+  lines.forEach(line => {
+    line = line.trim();
+    if (!line || line.startsWith('#')) return;
+    const eq = line.indexOf('=');
+    if (eq < 1) return;
+    const key = line.slice(0, eq).trim();
+    let val = line.slice(eq + 1).trim();
+    /* Strip surrounding quotes if any */
+    if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+      val = val.slice(1, -1);
+    }
+    if (!process.env[key]) process.env[key] = val;
+  });
+  console.log('[ENV] Loaded .env file');
+}
 
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY || '';
 const TAVILY_KEY    = process.env.TAVILY_API_KEY || '';
