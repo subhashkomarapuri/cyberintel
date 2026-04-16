@@ -796,15 +796,11 @@ function onGenerate(mode) {
     console.log('[CyberIntel] Research stats:', _researchStats);
     console.log('[CyberIntel] Research context length:', webContext.length, 'chars');
 
-    /* HARD STOP — refuse to generate if no real data was scraped */
+    /* Warn if no research data — report will rely on Claude's training knowledge */
     var tavChars = _researchStats.tavilyChars || 0;
     var fmpChars = _researchStats.fmpChars || 0;
     if (tavChars < 500 && fmpChars < 500) {
-      throw new Error(
-        'RESEARCH_EMPTY: Both Tavily (' + tavChars + ' chars) and FMP (' + fmpChars + ' chars) returned no usable data. ' +
-        'Generating a report now would produce hallucinated facts. ' +
-        'Click "Test API Keys" to diagnose, then check env vars (TAVILY_API_KEY, FMP_API_KEY).'
-      );
+      console.warn('[CyberIntel] No research data — report will use Claude training knowledge only');
     }
 
     /* Activate Claude step */
@@ -851,8 +847,7 @@ function onGenerate(mode) {
     pp.classList.remove('show');
     btnCo.disabled = btnSec.disabled = false;
     var m = err.message || String(err);
-    if (/RESEARCH_EMPTY/.test(m))          showErr(m.replace('RESEARCH_EMPTY: ', ''));
-    else if (/abort/i.test(m))             showErr('Request timed out. Make sure server.js is running.');
+    if (/abort/i.test(m))             showErr('Request timed out. Make sure server.js is running.');
     else if (/401|403|invalid/i.test(m))   showErr('Invalid API key — check Railway environment variables.');
     else if (/429|rate_limit|credit/i.test(m)) showErr('Credit balance too low or rate limit hit. Top up at console.anthropic.com/settings/billing');
     else if (/Failed to fetch|network/i.test(m)) showErr('Cannot reach server. Make sure it is running.');
