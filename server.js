@@ -148,6 +148,7 @@ function sectorQueries(company, domain, sector) {
   ];
 }
 
+/* runTavily kept for non-streaming use (health check etc.) */
 async function runTavily(queries) {
   if (!TAVILY_KEY) { console.log('  [Tavily] SKIPPED — no key'); return ''; }
   const results = await Promise.allSettled(
@@ -359,16 +360,114 @@ const server = http.createServer(async (req, res) => {
     } catch { res.writeHead(404); return res.end('Not found'); }
   }
 
-  /* Research */
+  /* Research — streams real-time progress events (NDJSON) */
   if (req.method === 'POST' && req.url === '/api/research') {
+    let headersSent = false;
     try {
       const body = JSON.parse(await readBody(req));
-      const result = await research(body.company || '', body.domain || '', body.sector || '', body.mode || 'company');
-      res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-      return res.end(JSON.stringify(result));
+      const company = body.company || '';
+      const domain  = body.domain || '';
+      const sector  = body.sector || '';
+      const mode    = body.mode || 'company';
+
+      console.log(`\n[Research] ${company} (${domain}), mode=${mode}`);
+
+      res.writeHead(200, {
+        'Content-Type': 'text/plain; charset=utf-8',
+        'Transfer-Encoding': 'chunked',
+        'Access-Control-Allow-Origin': '*',
+        'Cache-Control': 'no-cache',
+        'X-Content-Type-Options': 'nosniff'
+      });
+      headersSent = true;
+
+      const emit = (data) => { try { res.write(JSON.stringify(data) + '\n'); } catch(e) {} };
+
+      const queries = mode === 'sector'
+        ? sectorQueries(company, domain, sector)
+        : companyQueries(company, domain, sector);
+
+      /* Send step labels so frontend can build the UI */
+      const steps = queries.map(q => 'Tavily: ' + q.label);
+      steps.push('FMP: Loading peer financials');
+      steps.push('Compiling research data');
+      emit({ event: 'init', steps });
+
+      /* ── Tavily: run in parallel, emit per-query as each resolves ── */
+      let tavilyText = '';
+      if (TAVILY_KEY) {
+        queries.forEach((_, i) => emit({ event: 'step', index: i, status: 'running' }));
+
+        const tavilyResults = await Promise.allSettled(
+          queries.map((q, i) =>
+            tavilySearch(q.q, 5).then(result => {
+              const text = formatTavily(q.label, result);
+              const n = result?.results?.length || 0;
+              emit({
+                event: 'step', index: i,
+                status: text ? 'done' : 'warn',
+                detail: text ? n + ' results scraped' : 'no results found'
+              });
+              return text || '';
+            }).catch(err => {
+              emit({ event: 'step', index: i, status: 'fail', detail: err.message });
+              return '';
+            })
+          )
+        );
+        tavilyResults.forEach(r => { if (r.status === 'fulfilled') tavilyText += r.value; });
+      } else {
+        queries.forEach((_, i) => emit({ event: 'step', index: i, status: 'skip', detail: 'API key not configured' }));
+      }
+
+      /* ── FMP ── */
+      const fmpIdx = queries.length;
+      let fmpText = '';
+      if (FMP_KEY) {
+        emit({ event: 'step', index: fmpIdx, status: 'running' });
+        try {
+          fmpText = await fetchPeers();
+          emit({
+            event: 'step', index: fmpIdx,
+            status: fmpText ? 'done' : 'warn',
+            detail: fmpText ? PEERS.length + ' peers loaded' : 'no peer data'
+          });
+        } catch (e) {
+          emit({ event: 'step', index: fmpIdx, status: 'fail', detail: e.message });
+        }
+      } else {
+        emit({ event: 'step', index: fmpIdx, status: 'skip', detail: 'API key not configured' });
+      }
+
+      /* ── Compile context ── */
+      const compileIdx = queries.length + 1;
+      emit({ event: 'step', index: compileIdx, status: 'running' });
+
+      let ctx = '=== LIVE WEB RESEARCH DATA ===\n';
+      ctx += 'Scraped from real web pages and financial APIs. Use exact numbers and cite URLs.\n\n';
+      if (tavilyText) ctx += tavilyText;
+      if (fmpText)    ctx += fmpText;
+      if (!tavilyText && !fmpText) ctx += '(No data retrieved — use training knowledge.)\n';
+      ctx += '\n=== END RESEARCH DATA ===\n';
+
+      if (ctx.length > MAX_CONTEXT_CHARS) {
+        console.log(`[Research] Truncating from ${ctx.length} to ${MAX_CONTEXT_CHARS}`);
+        ctx = ctx.slice(0, MAX_CONTEXT_CHARS) + '\n… (truncated)\n=== END RESEARCH DATA ===\n';
+      }
+
+      const stats = { tavilyChars: tavilyText.length, fmpChars: fmpText.length, totalChars: ctx.length };
+      emit({ event: 'step', index: compileIdx, status: 'done', detail: Math.round(stats.totalChars / 1000) + 'K chars compiled' });
+
+      console.log(`[Research] Done — tavily: ${tavilyText.length} chars, fmp: ${fmpText.length} chars, total: ${ctx.length} chars`);
+      emit({ event: 'complete', context: ctx, stats });
+      return res.end();
     } catch (err) {
       console.error('[Research] ERROR:', err.message);
-      res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+      if (headersSent) {
+        try { res.write(JSON.stringify({ event: 'error', message: err.message }) + '\n'); } catch(e) {}
+        return res.end();
+      }
+      res.writeHead(500, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
       return res.end(JSON.stringify({ context: '', stats: { tavilyChars: 0, fmpChars: 0, totalChars: 0 }, error: err.message }));
     }
   }

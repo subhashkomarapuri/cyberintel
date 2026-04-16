@@ -148,7 +148,11 @@ body::before{
 .prog-step{font-family:var(--mono);font-size:11px;color:var(--text3);display:flex;align-items:center;gap:8px;transition:color .25s;}
 .prog-step.running{color:var(--accent);}
 .prog-step.done{color:var(--green);}
+.prog-step.skip{color:var(--text3);text-decoration:line-through;opacity:.6;}
+.prog-step.warn{color:var(--yellow);}
+.prog-step.fail{color:var(--red);}
 .step-ic{width:13px;flex-shrink:0;font-size:11px;}
+.prog-elapsed{margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--text3);letter-spacing:1px;}
 
 /* ── Report container ──────────────────────────────── */
 .report-wrap{display:none;}
@@ -451,6 +455,7 @@ body::before{
     <div class="prog-hdr">
       <span class="live-dot"></span>
       <span class="prog-title">Executing Intelligence Gathering Sequence</span>
+      <span class="prog-elapsed" id="progElapsed">0s</span>
     </div>
     <div class="prog-track"><div class="prog-fill" id="progFill"></div></div>
     <div class="prog-steps" id="progSteps"></div>
@@ -466,16 +471,8 @@ body::before{
 'use strict';
 
 /* ── Constants ───────────────────────────────────── */
-var STEPS = [
-  'Scraping web — company profile, leadership, investors...',
-  'Scraping web — funding rounds, valuations, deal terms...',
-  'Scraping web — M&A activity, partnerships, acquisitions...',
-  'Scraping web — revenue, ARR, growth metrics...',
-  'Scraping web — news, product launches, events...',
-  'Pulling real-time public peer financials (FMP)...',
-  'Compiling all research data...',
-  'Generating grounded intelligence report via Claude...'
-];
+/* STEPS are now sent dynamically by the server via the research stream.
+   No static array needed — each step label reflects the actual query being run. */
 
 var CO_TITLES = [
   'About the Company',
@@ -577,10 +574,16 @@ function setFill(pct) { $id('progFill').style.width = pct + '%'; }
 function setStep(i, state) {
   var el = $id('step' + i);
   if (!el) return;
-  el.classList.remove('running', 'done');
+  el.classList.remove('running', 'done', 'skip', 'warn', 'fail');
   if (state) el.classList.add(state);
-  el.querySelector('.step-ic').textContent =
-    state === 'done' ? '✓' : state === 'running' ? '◈' : '○';
+  var ic = el.querySelector('.step-ic');
+  if (!ic) return;
+  if      (state === 'done')    ic.textContent = '\u2713';
+  else if (state === 'running') ic.textContent = '\u25C8';
+  else if (state === 'skip')    ic.textContent = '\u2014';
+  else if (state === 'warn')    ic.textContent = '\u26A0';
+  else if (state === 'fail')    ic.textContent = '\u2717';
+  else                          ic.textContent = '\u25CB';
 }
 
 function showErr(msg) {
@@ -622,22 +625,14 @@ function onGenerate(mode) {
   var parsedUrl  = new URL(companyUrl);
   var hostname   = parsedUrl.hostname.replace(/^www\./, '');
   var parts      = hostname.split('.');
-  var domainCore = parts[0]; /* e.g. 'crowdstrike' from 'crowdstrike.com' */
-  var tld        = parts.slice(1).join('.'); /* e.g. 'com', 'co.uk', 'ch' */
-  var pathHint   = parsedUrl.pathname.replace(/^\//, '').split('/')[0] || ''; /* first path segment */
-  /* Build display name: capitalise, handle hyphens e.g. 'sentinel-one' → 'Sentinel-One' */
+  var domainCore = parts[0];
+  var tld        = parts.slice(1).join('.');
+  var pathHint   = parsedUrl.pathname.replace(/^\//, '').split('/')[0] || '';
   var company = domainCore
     .split('-')
     .map(function(w){ return w.charAt(0).toUpperCase() + w.slice(1); })
     .join('');
-  /* Build context object passed to prompts */
-  _urlContext = {
-    url:       companyUrl,
-    domain:    hostname,
-    name:      company,
-    tld:       tld,
-    pathHint:  pathHint
-  };
+  _urlContext = { url: companyUrl, domain: hostname, name: company, tld: tld, pathHint: pathHint };
 
   hideErr();
 
@@ -652,24 +647,33 @@ function onGenerate(mode) {
   $id('reportWrap').classList.remove('show');
   $id('reportWrap').innerHTML = '';
 
+  /* ── Show progress panel with initial placeholder ── */
   var pp = $id('progPanel');
   pp.classList.add('show');
-  $id('progSteps').innerHTML = STEPS.map(function (s, i) {
-    return '<div class="prog-step" id="step' + i + '"><span class="step-ic">○</span><span>' + s + '</span></div>';
-  }).join('');
-  setFill(0);
+  $id('progSteps').innerHTML =
+    '<div class="prog-step running" id="step_init"><span class="step-ic">\u25C8</span>' +
+    '<span class="step-label">Connecting to research pipeline...</span></div>';
+  setFill(2);
 
-  /* Step 0: start progress */
-  setStep(0, 'running');
-  setFill(5);
+  /* Elapsed timer */
+  var elapsed = 0;
+  if (window._elTimer) clearInterval(window._elTimer);
+  var elEl = $id('progElapsed');
+  if (elEl) elEl.textContent = '0s';
+  window._elTimer = setInterval(function () {
+    elapsed++;
+    if (elEl) elEl.textContent = elapsed + 's';
+  }, 1000);
 
   if (_controller) _controller.abort();
   _controller = new AbortController();
   var timeoutId = setTimeout(function () { _controller.abort(); }, 900000);
 
   var sNote = sector ? ' within the ' + sector + ' sector' : ' in the cybersecurity sector';
+  var totalSteps = 0;   /* set by 'init' event from server */
+  var doneCount  = 0;   /* tracks completed steps for progress bar */
 
-  /* Step 1: Call /api/research — real Tavily web searches */
+  /* ── Step 1: Stream research events in real time ── */
   fetch('/api/research', {
     signal: _controller.signal,
     method: 'POST',
@@ -681,32 +685,125 @@ function onGenerate(mode) {
       mode: mode
     })
   })
-  .then(function (res) {
-    if (!res.ok) throw new Error('Research API returned HTTP ' + res.status);
-    return res.json();
+  .then(function (response) {
+    if (!response.ok) throw new Error('Research API returned HTTP ' + response.status);
+    if (!response.body || !response.body.getReader) {
+      /* Fallback for browsers without ReadableStream — read full body */
+      return response.text().then(function (text) {
+        var lines = text.split('\n');
+        var result = null;
+        lines.forEach(function (line) {
+          line = line.trim();
+          if (!line) return;
+          try {
+            var evt = JSON.parse(line);
+            if (evt.event === 'complete') result = { context: evt.context, stats: evt.stats };
+          } catch(e) {}
+        });
+        return result;
+      });
+    }
+
+    /* Stream: read NDJSON events as they arrive */
+    var reader  = response.body.getReader();
+    var decoder = new TextDecoder();
+    var buffer  = '';
+    var researchResult = null;
+
+    function handleEvent(evt) {
+      if (evt.event === 'init') {
+        totalSteps = evt.steps.length;
+        var html = '';
+        evt.steps.forEach(function (label, i) {
+          html += '<div class="prog-step" id="step' + i + '">' +
+            '<span class="step-ic">\u25CB</span>' +
+            '<span class="step-label">' + esc(label) + '</span></div>';
+        });
+        /* Claude step appended at the end */
+        html += '<div class="prog-step" id="step' + totalSteps + '">' +
+          '<span class="step-ic">\u25CB</span>' +
+          '<span class="step-label">Generating intelligence report via Claude...</span></div>';
+        $id('progSteps').innerHTML = html;
+        setFill(5);
+      }
+      else if (evt.event === 'step') {
+        setStep(evt.index, evt.status);
+        /* Append live detail to the label */
+        if (evt.detail) {
+          var el = $id('step' + evt.index);
+          if (el) {
+            var lbl = el.querySelector('.step-label');
+            if (lbl) {
+              var base = lbl.textContent.split(' \u2014 ')[0];
+              lbl.textContent = base + ' \u2014 ' + evt.detail;
+            }
+          }
+        }
+        /* Advance progress bar per completed step */
+        if (evt.status === 'done' || evt.status === 'skip' || evt.status === 'warn' || evt.status === 'fail') {
+          doneCount++;
+          setFill(Math.round(5 + (doneCount / (totalSteps + 1)) * 65));
+        }
+      }
+      else if (evt.event === 'complete') {
+        researchResult = { context: evt.context, stats: evt.stats };
+      }
+      else if (evt.event === 'error') {
+        throw new Error(evt.message);
+      }
+    }
+
+    function pump(chunk) {
+      if (chunk.done) {
+        /* Flush any remaining data in buffer */
+        if (buffer.trim()) {
+          try { handleEvent(JSON.parse(buffer.trim())); } catch(e) {}
+        }
+        return researchResult;
+      }
+      buffer += decoder.decode(chunk.value, { stream: true });
+      var lines = buffer.split('\n');
+      buffer = lines.pop(); /* keep incomplete tail */
+      lines.forEach(function (line) {
+        line = line.trim();
+        if (!line) return;
+        try { handleEvent(JSON.parse(line)); }
+        catch(e) { console.warn('[CyberIntel] Event parse error:', line); }
+      });
+      return reader.read().then(pump);
+    }
+
+    return reader.read().then(pump);
   })
   .then(function (research) {
-    /* Mark search steps done */
-    for (var i = 0; i < 6; i++) setStep(i, 'done');
-    setStep(6, 'running');
-    setFill(70);
+    if (!research) throw new Error('Research stream ended without complete event');
 
-    /* Store research stats for display in report header */
     _researchStats = research.stats || {};
-    var webContext = research.context || '';
+    var webContext  = research.context || '';
 
     console.log('[CyberIntel] Research stats:', _researchStats);
     console.log('[CyberIntel] Research context length:', webContext.length, 'chars');
+
+    /* HARD STOP — refuse to generate if no real data was scraped */
+    var tavChars = _researchStats.tavilyChars || 0;
+    var fmpChars = _researchStats.fmpChars || 0;
+    if (tavChars < 500 && fmpChars < 500) {
+      throw new Error(
+        'RESEARCH_EMPTY: Both Tavily (' + tavChars + ' chars) and FMP (' + fmpChars + ' chars) returned no usable data. ' +
+        'Generating a report now would produce hallucinated facts. ' +
+        'Click "Test API Keys" to diagnose, then check env vars (TAVILY_API_KEY, FMP_API_KEY).'
+      );
+    }
+
+    /* Activate Claude step */
+    setStep(totalSteps, 'running');
+    setFill(75);
 
     var prompt = mode === 'company'
       ? buildCompanyPrompt(company, sNote, _date, webContext)
       : buildSectorPrompt(company, sNote, _date, webContext);
 
-    setStep(6, 'done');
-    setStep(7, 'running');
-    setFill(80);
-
-    /* Step 2: Call Claude with enriched prompt */
+    /* ── Step 2: Call Claude ── */
     return fetch('/api/messages', {
       signal: _controller.signal,
       method: 'POST',
@@ -720,6 +817,7 @@ function onGenerate(mode) {
   })
   .then(function (res) {
     clearTimeout(timeoutId);
+    if (window._elTimer) { clearInterval(window._elTimer); window._elTimer = null; }
     if (!res.ok) {
       return res.text().then(function (txt) {
         try { var b = JSON.parse(txt); throw new Error((b.error && (b.error.message || b.error)) || 'HTTP ' + res.status); }
@@ -729,18 +827,21 @@ function onGenerate(mode) {
     return res.json();
   })
   .then(function (data) {
-    STEPS.forEach(function (_, i) { setStep(i, 'done'); });
+    /* All steps done */
+    for (var i = 0; i <= totalSteps; i++) setStep(i, 'done');
     setFill(100);
     var rawHtml = (data.content || []).filter(function (b) { return b.type === 'text'; }).map(function (b) { return b.text; }).join('\n');
     render(company, sector, rawHtml, _date, mode);
   })
   .catch(function (err) {
     clearTimeout(timeoutId);
+    if (window._elTimer) { clearInterval(window._elTimer); window._elTimer = null; }
     pp.classList.remove('show');
     btnCo.disabled = btnSec.disabled = false;
     var m = err.message || String(err);
-    if (/abort/i.test(m))             showErr('Request timed out. Make sure server.js is running.');
-    else if (/401|403|invalid/i.test(m)) showErr('Invalid API key — check Railway environment variables.');
+    if (/RESEARCH_EMPTY/.test(m))          showErr(m.replace('RESEARCH_EMPTY: ', ''));
+    else if (/abort/i.test(m))             showErr('Request timed out. Make sure server.js is running.');
+    else if (/401|403|invalid/i.test(m))   showErr('Invalid API key — check Railway environment variables.');
     else if (/429|rate_limit|credit/i.test(m)) showErr('Credit balance too low or rate limit hit. Top up at console.anthropic.com/settings/billing');
     else if (/Failed to fetch|network/i.test(m)) showErr('Cannot reach server. Make sure it is running.');
     else showErr('Error: ' + m);
@@ -756,13 +857,15 @@ function buildCompanyPrompt(co, sNote, today, webContext) {
     '',
     webContext || '(No live web data available — use training knowledge only.)',
     '',
-    'CRITICAL DATA PRIORITY RULES:',
+    'CRITICAL DATA PRIORITY RULES (READ CAREFULLY — VIOLATIONS POISON THE REPORT):',
     '1. The LIVE WEB RESEARCH DATA above was scraped from the real internet moments ago. It is AUTHORITATIVE.',
     '2. If the research data contains a specific number (funding amount, revenue, headcount, valuation), use that EXACT number. Do NOT estimate.',
     '3. For the PUBLIC PEER FINANCIALS section (CRWD, PANW, S, ZS, etc.), use the exact figures provided — market cap, revenue, growth, margins, EV/Revenue. These are real-time.',
-    '4. Cite every fact with the actual URL from the research: <a class="source-tag" href="URL" target="_blank">SOURCE NAME</a>',
-    '5. Only use (Est.) when the research data has absolutely no coverage of a metric. Estimates are a LAST RESORT, not a default.',
-    '6. You may combine training knowledge with web data, but web data always wins on conflicts.',
+    '4. ZERO HALLUCINATED URLS. You may ONLY cite a URL if that EXACT URL string appears verbatim in the research data above. NEVER invent, guess, or reconstruct a URL — even if it "looks right". If you cannot find a matching URL in the research data, you MUST use an est-tag instead of a source-tag.',
+    '5. ZERO TRAINING-DATA FACTS PASSED OFF AS SOURCED. Any fact you recall from training (CEO names, funding amounts, customer counts, executive bios) MUST be wrapped in <span class="est-tag">Est.<span class="est-tip">Basis: Claude training knowledge, cutoff ~Jan 2025 — may be outdated. Verify before use.</span></span>. If it is not in the research data above, it is NOT sourced. Period.',
+    '6. FRESHNESS CHECK: Training data is at least 12+ months stale. For ANY person-in-role fact (CEO, CFO, CTO, board members), if it is not in the research data, treat it as an est-tag with an explicit "may have changed" warning. Do NOT confidently assert old executive names as fact.',
+    '7. Only use (Est.) when the research data has absolutely no coverage of a metric. Estimates are a LAST RESORT, not a default.',
+    '8. You may combine training knowledge with web data, but web data always wins on conflicts — and if you use a training fact, it MUST be marked as est-tag.',
     '',
     'COMPANY IDENTIFICATION:',
     '  Official website: ' + _urlContext.url,
@@ -778,14 +881,15 @@ function buildCompanyPrompt(co, sNote, today, webContext) {
     '- Output exactly 5 HTML sections, each starting with [SECTION:N] (N=1 to 5).',
     '- Bullets only. NO prose paragraphs. Use <ul><li> for all insights.',
     '',
-    'SOURCE CITATION RULES (MANDATORY):',
-    '- For EVERY fact from the research data: use <a class="source-tag" href="ACTUAL_URL_FROM_RESEARCH" target="_blank">Source Name</a>',
-    '  Example: CrowdStrike reported $3.06B revenue <a class="source-tag" href="https://ir.crowdstrike.com/..." target="_blank">CrowdStrike IR</a>',
-    '- For EVERY estimate or training-knowledge fact: use <span class="est-tag">Est.<span class="est-tip">Basis: Series C benchmark — typical valuation $300M–$800M at this stage</span></span>',
+    'SOURCE CITATION RULES (MANDATORY — THESE OVERRIDE THOROUGHNESS):',
+    '- For a fact to use <a class="source-tag">, the exact URL must appear in the research data above. If you cannot copy-paste a URL from the research block, you CANNOT use a source-tag. Use est-tag instead.',
+    '  Example (valid): CrowdStrike reported $3.06B revenue <a class="source-tag" href="https://ir.crowdstrike.com/news/..." target="_blank">CrowdStrike IR</a>  ← only if that URL is literally in the research block',
+    '- For EVERY training-knowledge fact (CEO names, funding amounts from memory, etc.): use <span class="est-tag">Est.<span class="est-tip">Basis: Claude training knowledge, ~Jan 2025 cutoff — verify. Specific reasoning: ...</span></span>',
+    '- For EVERY modeled estimate (valuations, multiples, benchmarks): use <span class="est-tag">Est.<span class="est-tip">Basis: Series C benchmark — typical valuation $300M–$800M at this stage</span></span>',
     '  The est-tip MUST explain the reasoning: what benchmark, what comparable, what method.',
-    '- For peer financial data from FMP: use <a class="source-tag" href="https://financialmodelingprep.com" target="_blank">FMP</a>',
-    '- In table Source columns: put the actual clickable link, NOT the text "Training knowledge"',
-    '- NEVER write just "Training knowledge" or "Est. based on market patterns" without a source-tag or est-tag wrapper',
+    '- For peer financial data that appeared in the PUBLIC PEER FINANCIALS block: use <a class="source-tag" href="https://financialmodelingprep.com" target="_blank">FMP</a>',
+    '- In table Source columns: put a source-tag (only if URL is in research) OR est-tag. NEVER plain text.',
+    '- If you catch yourself writing a URL you are not 100% sure is in the research block above, STOP and convert it to an est-tag.',
     '',
     'ESTIMATION RULES (only when research data has no coverage):',
     '  VALUATION: Seed=$2M-$15M | SeriesA=$15M-$80M | SeriesB=$80M-$300M | SeriesC=$300M-$800M | SeriesD+=$800M-$3B | Growth/Late=$1B-$10B',
@@ -843,13 +947,15 @@ function buildSectorPrompt(co, sNote, today, webContext) {
     '',
     webContext || '(No live web data available — use training knowledge only.)',
     '',
-    'CRITICAL DATA PRIORITY RULES:',
+    'CRITICAL DATA PRIORITY RULES (READ CAREFULLY — VIOLATIONS POISON THE REPORT):',
     '1. The LIVE WEB RESEARCH DATA above was scraped from the real internet moments ago. It is AUTHORITATIVE.',
     '2. If the research data contains a specific number (deal volume, funding amount, valuation multiple), use that EXACT number. Do NOT estimate.',
     '3. For the PUBLIC PEER FINANCIALS section (CRWD, PANW, S, ZS, etc.), use the exact figures provided — market cap, revenue, growth, margins, EV/Revenue. These are real-time.',
-    '4. Cite every fact with the actual URL from the research: <a class="source-tag" href="URL" target="_blank">SOURCE NAME</a>',
-    '5. Only use (Est.) when the research data has absolutely no coverage of a metric. Estimates are a LAST RESORT, not a default.',
-    '6. You may combine training knowledge with web data, but web data always wins on conflicts.',
+    '4. ZERO HALLUCINATED URLS. You may ONLY cite a URL if that EXACT URL string appears verbatim in the research data above. NEVER invent, guess, or reconstruct a URL. If you cannot find a matching URL in the research data, you MUST use an est-tag instead of a source-tag.',
+    '5. ZERO TRAINING-DATA FACTS PASSED OFF AS SOURCED. Any fact from memory (deal names, acquirer names, exec names, funding amounts) MUST be wrapped in <span class="est-tag">Est.<span class="est-tip">Basis: Claude training knowledge, cutoff ~Jan 2025 — may be outdated. Verify.</span></span>. If it is not in the research data above, it is NOT sourced.',
+    '6. FRESHNESS CHECK: Training data is at least 12+ months stale. Executive moves, pending deals, and valuations change fast — do NOT assert training-era facts as current.',
+    '7. Only use (Est.) when the research data has absolutely no coverage of a metric. Estimates are a LAST RESORT, not a default.',
+    '8. You may combine training knowledge with web data, but web data always wins on conflicts — and training-only facts MUST be marked as est-tag.',
     '',
     'COMPANY IDENTIFICATION:',
     '  Official website: ' + _urlContext.url,
@@ -864,11 +970,13 @@ function buildSectorPrompt(co, sNote, today, webContext) {
     '- Output exactly 4 HTML sections, each starting with [SECTION:N] (N=1 to 4).',
     '- Bullets only. NO prose paragraphs. Use <ul><li> for all insights.',
     '',
-    'SOURCE CITATION RULES (MANDATORY):',
-    '- For EVERY fact from the research data: use <a class="source-tag" href="ACTUAL_URL_FROM_RESEARCH" target="_blank">Source Name</a>',
-    '- For EVERY estimate: use <span class="est-tag">Est.<span class="est-tip">Basis: explanation of method used</span></span>',
-    '- For peer financial data from FMP: use <a class="source-tag" href="https://financialmodelingprep.com" target="_blank">FMP</a>',
-    '- In table Source columns: put actual clickable links, NOT plain text like "Training knowledge"',
+    'SOURCE CITATION RULES (MANDATORY — THESE OVERRIDE THOROUGHNESS):',
+    '- For a fact to use <a class="source-tag">, the exact URL must appear in the research data above. If you cannot copy-paste a URL from the research block, you CANNOT use a source-tag. Use est-tag instead.',
+    '- For EVERY training-knowledge fact: use <span class="est-tag">Est.<span class="est-tip">Basis: Claude training knowledge, ~Jan 2025 cutoff — verify. Specific reasoning: ...</span></span>',
+    '- For EVERY modeled estimate: use <span class="est-tag">Est.<span class="est-tip">Basis: explanation of method used</span></span>',
+    '- For peer financial data that appeared in the PUBLIC PEER FINANCIALS block: use <a class="source-tag" href="https://financialmodelingprep.com" target="_blank">FMP</a>',
+    '- In table Source columns: put a source-tag (only if URL is in research) OR est-tag. NEVER plain text.',
+    '- If you catch yourself writing a URL you are not 100% sure is in the research block above, STOP and convert it to an est-tag.',
     '',
     'ESTIMATION RULES (only when research data has no coverage):',
     '  SECTOR DEAL VOLUME: Cybersecurity ~300-400 deals/year | ~25-35/month | YTD 2026 ~$18-22B total',
